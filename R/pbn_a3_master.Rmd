@@ -50,6 +50,8 @@ library(ggplot2)
 a_dat <- read_csv("https://raw.githubusercontent.com/c-townsley/pbn_a3_repo/main/Data/Chester_Urban_Growth.csv")
 ```
 
+<br>
+
 ## A.1
 >Read the data into R. Run descriptive statistics as necessary.
 
