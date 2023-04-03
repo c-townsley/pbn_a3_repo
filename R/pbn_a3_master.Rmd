@@ -47,13 +47,17 @@ library(tidyverse)
 library(dplyr)
 library(ggplot2)
 
-a_dat <- read_csv("https://raw.githubusercontent.com/c-townsley/pbn_a3_repo/main/Data/Chester_Urban_Growth.csv")
+Dat_A <- read_csv("https://raw.githubusercontent.com/c-townsley/pbn_a3_repo/main/Data/Chester_Urban_Growth.csv")
 ```
 
 <br>
 
 ## A.1
 >Read the data into R. Run descriptive statistics as necessary.
+
+```{r packages data and colors, warning = FALSE, message = FALSE}
+summary(Dat_A)
+```
 
 <br>
 
@@ -62,6 +66,11 @@ a_dat <- read_csv("https://raw.githubusercontent.com/c-townsley/pbn_a3_repo/main
 either farmland or pasture land or forest in 1992, and which converted to urban uses by
 2001. Indicate these cells with a 1. All other cells should be coded to 0.
 
+```{r Land Use Change Characterization}
+Dat_A <- Dat_A %>% 
+  mutate(CHNG_URB = ifelse(FARM92 == 1 | PASTURE92 == 1 | FOREST92 == 1 & URBAN01 == 1, 1, 0))
+
+```
 <br>
 
 ## A.3
@@ -70,6 +79,115 @@ agricultural/pasture/forest land-to-urban land use change between 1992 and 2001 
 is the 0/1 variable created in step 2). Use whatever independent variables you think
 appropriate, and be sure to explain your logic and model development steps.
 
+```{r Correlations with Land Use Change}
+print("SLOPE")
+cor(Dat_A$CHNG_URB, Dat_A$SLOPE, use="complete.obs", method="pearson")
+print("FOURLNE300")
+cor(Dat_A$CHNG_URB, Dat_A$FOURLNE300, use="complete.obs", method="pearson")
+print("INTERST800")
+cor(Dat_A$CHNG_URB, Dat_A$INTERST800, use="complete.obs", method="pearson")
+print("REGRAIL300")
+cor(Dat_A$CHNG_URB, Dat_A$REGRAIL300, use="complete.obs", method="pearson")
+print("PARKS500M")
+cor(Dat_A$CHNG_URB, Dat_A$PARKS500M, use="complete.obs", method="pearson")
+print("WATER100")
+cor(Dat_A$CHNG_URB, Dat_A$WATER100, use="complete.obs", method="pearson")
+print("CITBORO_10")
+cor(Dat_A$CHNG_URB, Dat_A$CITBORO_10, use="complete.obs", method="pearson")
+print("DIST_WATER")
+cor(Dat_A$CHNG_URB, Dat_A$DIST_WATER, use="complete.obs", method="pearson")
+print("DIST_RAILS")
+cor(Dat_A$CHNG_URB, Dat_A$DIST_RAILS, use="complete.obs", method="pearson")
+print("DIST_REGRA")
+cor(Dat_A$CHNG_URB, Dat_A$DIST_REGRA, use="complete.obs", method="pearson")
+print("DIST_PASSR")
+cor(Dat_A$CHNG_URB, Dat_A$DIST_PASSR, use="complete.obs", method="pearson")
+print("DIST_4LNE_")
+cor(Dat_A$CHNG_URB, Dat_A$DIST_4LNE_, use="complete.obs", method="pearson")
+print("DIST_INTER")
+cor(Dat_A$CHNG_URB, Dat_A$DIST_INTER, use="complete.obs", method="pearson")
+print("DIST_PARKS")
+cor(Dat_A$CHNG_URB, Dat_A$DIST_PARKS, use="complete.obs", method="pearson")
+print("PAL_WETLND")
+cor(Dat_A$CHNG_URB, Dat_A$PAL_WETLND, use="complete.obs", method="pearson")
+print("POPDEN90")
+cor(Dat_A$CHNG_URB, Dat_A$POPDEN90, use="complete.obs", method="pearson")
+print("MEDINC90")
+cor(Dat_A$CHNG_URB, Dat_A$MEDINC90, use="complete.obs", method="pearson")
+print("MEDHSEVAL_")
+cor(Dat_A$CHNG_URB, Dat_A$MEDHSEVAL_, use="complete.obs", method="pearson")
+print("PCT_WHITE_")
+cor(Dat_A$CHNG_URB, Dat_A$PCT_WHITE_, use="complete.obs", method="pearson")
+print("PCT_SFHOME")
+cor(Dat_A$CHNG_URB, Dat_A$PCT_SFHOME, use="complete.obs", method="pearson")
+print("PCT_POV_90")
+cor(Dat_A$CHNG_URB, Dat_A$PCT_POV_90, use="complete.obs", method="pearson")
+print("PCT_HSB_19")
+cor(Dat_A$CHNG_URB, Dat_A$PCT_HSB_19, use="complete.obs", method="pearson")
+print("PCT_COLGRD")
+cor(Dat_A$CHNG_URB, Dat_A$PCT_COLGRD, use="complete.obs", method="pearson")
+```
+The variables in order of correlation with CHNG_URB are as follows:
+"DIST_INTER" 0.3188977
+"DIST_REGRA" 0.2908341
+"DIST_RAILS" 0.290569
+"SLOPE" -0.2689929
+"DIST_PARKS" 0.2504532
+"REGRAIL300" -0.2117686
+"INTERST800" -0.2075421
+"MEDHSEVAL_" -0.1595283
+"MEDINC90" -0.1479734
+"PCT_POV_90" 0.115068
+"PCT_COLGRD" 0.115068
+"DIST_WATER" -0.09334977
+"PCT_WHITE_" -0.08178655
+"DIST_PASSR" 0.0765004
+"PARKS500M" -0.07496059
+"PCT_HSB_19" 0.07437706
+"POPDEN90" -0.07412875
+"DIST_4LNE_" 0.07289739
+"FOURLNE300" -0.05593594
+"PCT_SFHOME" -0.0524793
+"CITBORO_10" -0.03061511
+"WATER100" -0.01852956
+"PAL_WETLND" -0.007407224
+
+Let's test the top 10 variables mos correlated with CHNG_URB for colinearity using a cor plot.
+```{r correlation matrix, fig.width=7, fig.height=5, fig.width=8}
+#make matrix of variables we're testing
+mod_vars <- Dat_A %>% 
+  dplyr::select(CHNG_URB, DIST_INTER, DIST_REGRA, DIST_RAILS, SLOPE, DIST_PARKS, REGRAIL300, INTERST800, MEDHSEVAL_, MEDINC90, PCT_POV_90)
+
+#compute correlation matrix
+cormatrix <- cor(mod_vars) %>% 
+  round(., 2)
+
+#plot a correlogram
+corrplot(cormatrix, method = "circle", type = "lower", order = "hclust", 
+         tl.col = "black", tl.srt = 45)
+```
+
+This plot shows that the following variables exhibit correlation with each other, meaning that their inclusion in the model is mutually exclusive.
+
+DIST_INTER & DIST_REGRA & DIST_RAILS
+DIST_INTER & INTERST800
+MEDHSEVAL_ & MEDINC09
+
+```{r Binomial Logit Model}
+mod <- glm (CHNG_URB ~ DIST_REGRA + SLOPE + DIST_PARKS + REGRAIL300 + INTERST800 + MEDHSEVAL_ + PCT_POV_90, data=Dat_A, family = binomial)
+summary(mod)
+
+```
+```{r Step Logit Model}
+mod1_drop <- drop1(mod, test="Chisq")
+mod1_drop
+```
+
+
+```{r Step Logit Model}
+mod2<- drop1(mod2, test="Chisq")
+mod3
+```
 <br>
 
 ## A.4
