@@ -329,7 +329,11 @@ library(tidyverse)
 library(dplyr)
 library(ggplot2)
 
-b_dat <- read_csv("https://raw.githubusercontent.com/c-townsley/pbn_a3_repo/main/Data/Chester_Urban_Growth.csv")
+per_dat <- read_csv("https://raw.githubusercontent.com/c-townsley/pbn_a3_repo/main/Data/HH%20Travel%20Survey/per_pub.csv")
+
+trip_dat <- read_csv("https://raw.githubusercontent.com/c-townsley/pbn_a3_repo/main/Data/HH%20Travel%20Survey/trip_pub.csv")
+
+hh_dat <- read_csv("https://raw.githubusercontent.com/c-townsley/pbn_a3_repo/main/Data/HH%20Travel%20Survey/hh_pub_CSV.csv", col_names = TRUE)
 ```
 
 <br>
@@ -338,12 +342,10 @@ b_dat <- read_csv("https://raw.githubusercontent.com/c-townsley/pbn_a3_repo/main
 >Develop the best (“leanest and meanest” and unbiased) binomial LOGIT model you
 can explaining whether a commuter drove to work or used another mode. Use any
 and all independent variables you think appropriate, including dummy variables.
-Summarize your model results in a paragraph. Include a few plots or tables that
-show the probabilities of each choice versus changes in key variables in your model.
-NOTE: THIS MAY REQUIRE YOU TO LOOK THROUGH THE META_DATA. It requires
-selecting the observations from the trip table that correspond to a person’s work trip. A
-person may have multiple work trips – how will you handle this? (I suggest taking the first
-one-way work trip of the day, but there are others methods to handle this).
+
+>Summarize your model results in a paragraph.
+
+>Include a few plots or tables that show the probabilities of each choice versus changes in key variables in your model.
 
 >NOTE: THIS MAY REQUIRE YOU TO LOOK THROUGH THE META_DATA. It requires
 selecting the observations from the trip table that correspond to a person’s work trip. A
