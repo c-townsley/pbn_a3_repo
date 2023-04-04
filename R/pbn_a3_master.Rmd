@@ -46,6 +46,8 @@ corresponds to a 500-meter raster cell location.
 library(tidyverse)
 library(dplyr)
 library(ggplot2)
+library(caret)
+library(MASS)
 
 Dat_A <- read_csv("https://raw.githubusercontent.com/c-townsley/pbn_a3_repo/main/Data/Chester_Urban_Growth.csv")
 ```
@@ -173,21 +175,123 @@ DIST_INTER & DIST_REGRA & DIST_RAILS
 DIST_INTER & INTERST800
 MEDHSEVAL_ & MEDINC09
 
-```{r Binomial Logit Model}
-mod <- glm (CHNG_URB ~ DIST_REGRA + SLOPE + DIST_PARKS + REGRAIL300 + INTERST800 + MEDHSEVAL_ + PCT_POV_90, data=Dat_A, family = binomial)
-summary(mod)
-
+```{r Binomial Logit Model 1}
+mod1 <- glm (CHNG_URB ~ DIST_REGRA + SLOPE + DIST_PARKS + REGRAIL300 + INTERST800 + MEDHSEVAL_ + PCT_POV_90, data=Dat_A, family = binomial)
+summary(mod1)
 ```
-```{r Step Logit Model}
-mod1_drop <- drop1(mod, test="Chisq")
-mod1_drop
+PCT_POV_90 appears to be insignificant, so let's try removing it from model 2
+```{r Binomial Logit Model 2}
+mod2<- glm (CHNG_URB ~ DIST_REGRA + SLOPE + DIST_PARKS + REGRAIL300 + INTERST800 + MEDHSEVAL_, data=Dat_A, family = binomial)
+summary(mod2)
 ```
+When we remove PCT_POV_90, the AIC decreases by 0.2. INTERST800 also appears to be insignificant, so what happens if we remove that too?
+
+```{r Binomial Logit Model 3}
+mod3<- glm (CHNG_URB ~ DIST_REGRA + SLOPE + DIST_PARKS + REGRAIL300 + MEDHSEVAL_, data=Dat_A, family = binomial)
+summary(mod3)
+```
+Now the AIC is back to where it was in the first model. Also, the residual deviance is 0.2 higher than model 2.
+
+Since DIST_INTER is colinear with DIST_REGRA, DIST_RAILS, and INTERST800, it was not included in the first version of the model, so let's try a model with DIST_INTER.
+
+```{r Binomial Logit Model 4}
+mod4<- glm (CHNG_URB ~ DIST_INTER + SLOPE + DIST_PARKS + REGRAIL300 + MEDHSEVAL_, data=Dat_A, family = binomial)
+summary(mod4)
+```
+The AIC increased on this model compared to the previous ones, so it seems like model 2 is the way to go.
+
+```{r Binomial Logit Model 2}
+##################################
+# CALCULATE PREDICTION ACCURACY
+##################################
+
+#####model1
+#calc the predicted probabilities based on the model
+pred <- as.data.frame(fitted(mod1))
+pred <- rename(pred, "prob" = "fitted(mod1)")
+pred <- mutate(pred, "binary" = ifelse(prob < 0.5, 0, 1))
+#append column to original data frame
+Dat_A$binary <- pred$binary
+head(Dat_A)
+#calculate accuracy rate
+mod1_Acc <- (sum(Dat_A$URBAN01 == 1 & Dat_A$binary == 1) + sum(Dat_A$URBAN01 == 0 & Dat_A$binary == 0)) / nrow(Dat_A)
 
 
-```{r Step Logit Model}
-mod2<- drop1(mod2, test="Chisq")
-mod3
+#####model2
+#calc the predicted probabilities based on the model
+pred <- as.data.frame(fitted(mod2))
+pred <- rename(pred, "prob" = "fitted(mod2)")
+pred <- mutate(pred, "binary" = ifelse(prob < 0.5, 0, 1))
+#append column to original data frame
+Dat_A$binary <- pred$binary
+head(Dat_A)
+#calculate accuracy rate
+mod2_Acc <- (sum(Dat_A$URBAN01 == 1 & Dat_A$binary == 1) + sum(Dat_A$URBAN01 == 0 & Dat_A$binary == 0)) / nrow(Dat_A)
+
+
+#####model3 
+#calc the predicted probabilities based on the model
+pred <- as.data.frame(fitted(mod3))
+pred <- rename(pred, "prob" = "fitted(mod3)")
+pred <- mutate(pred, "binary" = ifelse(prob < 0.5, 0, 1))
+#append column to original data frame
+Dat_A$binary <- pred$binary
+head(Dat_A)
+#calculate accuracy rate
+mod3_Acc <- (sum(Dat_A$URBAN01 == 1 & Dat_A$binary == 1) + sum(Dat_A$URBAN01 == 0 & Dat_A$binary == 0)) / nrow(Dat_A)
+
+
+#####model4
+#calc the predicted probabilities based on the model
+pred <- as.data.frame(fitted(mod4))
+pred <- rename(pred, "prob" = "fitted(mod4)")
+pred <- mutate(pred, "binary" = ifelse(prob < 0.5, 0, 1))
+#append column to original data frame
+Dat_A$binary <- pred$binary
+head(Dat_A)
+#calculate accuracy rate
+mod4_Acc <- (sum(Dat_A$URBAN01 == 1 & Dat_A$binary == 1) + sum(Dat_A$URBAN01 == 0 & Dat_A$binary == 0)) / nrow(Dat_A)
+
+print("model 1 Accuracy")
+mod1_Acc
+print("model 2 Accuracy")
+mod2_Acc
+print("model 3 Accuracy")
+mod3_Acc
+print("model 4 Accuracy")
+mod4_Acc
 ```
+<br>
+
+Let's try this another way. What happens if we let the machine do the work of sorting out what variables to include in the model?
+```{r training_set}
+set.seed(3456)
+trainIndex <- createDataPartition(Dat_A$CHNG_URB, p = .70, list = FALSE, times = 1)
+
+Dat_A_Train <- Dat_A[ trainIndex,]
+Dat_A_Test  <- Dat_A[-trainIndex,]
+```
+
+```{r firstModel, warining = FALSE, message = FALSE}
+MechModel <- glm(CHNG_URB ~ ., 
+                    family="binomial"(link="logit"), data = Dat_A_Train)
+summary(MechModel)
+```
+
+```{r confusion_matrix, message = FALSE, warning = FALSE}
+classProbs <- predict(MechModel, Dat_A_Test, type="response")
+
+testProbs <- data.frame(obs = as.numeric(Dat_A_Test$CHNG_URB), pred = classProbs)
+
+testProbs$predClass  = ifelse(testProbs$pred > .5 ,1,0)
+
+caret::confusionMatrix(reference = as.factor(testProbs$obs), 
+                       data = as.factor(testProbs$predClass), 
+                       positive = "1")
+```
+Okay, so according to this confusion matrix, this model is 100% accurate. We may have an issue with over-fitness here, but it's certainly better than our manually developed model, which had an accuracy rate of 42%.
+
+
 <br>
 
 ## A.4
@@ -196,11 +300,15 @@ well does your model fit the data? Which factors are most important in explainin
 use change in Chester County from 1992-2001? How do you know? Do you have any
 ideas for improving the performance of your model?
 
+
+
 <br>
 
 ## A.5
 >Include a few plots or tables that show the probabilities versus changes in key variables
 in your model.
+
+
 
 <br>
 <br>
