@@ -48,8 +48,6 @@ library(dplyr)
 library(ggplot2)
 library(caret)
 library(MASS)
-library(corrplot)
-library(magrittr)
 
 Dat_A <- read_csv("https://raw.githubusercontent.com/c-townsley/pbn_a3_repo/main/Data/Chester_Urban_Growth.csv")
 ```
@@ -265,13 +263,19 @@ mod4_Acc
 ```
 <br>
 
+<<<<<<< HEAD
 Let's try this another way. What happens if we let the machine do the work of sorting out which variables to include in the model?
 ```{r ML_Model1 training}
 Dat_B <- Dat_A %>% dplyr::select(-CHESCO, -X, -Y, -PCT_COLGRD, -binary, -FARM92, -PASTURE92, -FOREST92, -URBAN01, -URBAN92)
 
+=======
+Let's try this another way. What happens if we let the machine do the work of sorting out what variables to include in the model?
+```{r training_set}
+>>>>>>> 39e23ed257f8536c0df63191867d8d6374f9f894
 set.seed(3456)
-trainIndex <- createDataPartition(Dat_B$DIST_INTER, p = .70, list = FALSE, times = 1)
+trainIndex <- createDataPartition(Dat_A$CHNG_URB, p = .70, list = FALSE, times = 1)
 
+<<<<<<< HEAD
 Dat_B_Train <- Dat_B[ trainIndex,]
 Dat_B_Test  <- Dat_B[-trainIndex,]
 
@@ -330,11 +334,22 @@ summary(FloodModel)
 
 
 
+=======
+Dat_A_Train <- Dat_A[ trainIndex,]
+Dat_A_Test  <- Dat_A[-trainIndex,]
+```
+
+```{r firstModel, warining = FALSE, message = FALSE}
+MechModel <- glm(CHNG_URB ~ ., 
+                    family="binomial"(link="logit"), data = Dat_A_Train)
+summary(MechModel)
+```
+>>>>>>> 39e23ed257f8536c0df63191867d8d6374f9f894
 
 ```{r confusion_matrix, message = FALSE, warning = FALSE}
-classProbs <- predict(ML_Model2, Dat_C_Test, type="response")
+classProbs <- predict(MechModel, Dat_A_Test, type="response")
 
-testProbs <- data.frame(obs = as.numeric(Dat_C_Test$CHNG_URB), pred = classProbs)
+testProbs <- data.frame(obs = as.numeric(Dat_A_Test$CHNG_URB), pred = classProbs)
 
 testProbs$predClass  = ifelse(testProbs$pred > .5 ,1,0)
 
@@ -387,6 +402,10 @@ per_dat <- read_csv("https://raw.githubusercontent.com/c-townsley/pbn_a3_repo/ma
 trip_dat <- read_csv("https://raw.githubusercontent.com/c-townsley/pbn_a3_repo/main/Data/HH%20Travel%20Survey/trip_pub.csv")
 
 hh_dat <- read_csv("https://raw.githubusercontent.com/c-townsley/pbn_a3_repo/main/Data/HH%20Travel%20Survey/hh_pub_CSV.csv", col_names = TRUE)
+
+head(per_dat)
+head(trip_dat)
+head(hh_dat)
 ```
 
 <br>
@@ -395,6 +414,31 @@ hh_dat <- read_csv("https://raw.githubusercontent.com/c-townsley/pbn_a3_repo/mai
 >Develop the best (“leanest and meanest” and unbiased) binomial LOGIT model you
 can explaining whether a commuter drove to work or used another mode. Use any
 and all independent variables you think appropriate, including dummy variables.
+
+Binomial Dependent Variable: Drove to work or got to work any other way.
+
+Independent variables of interest:
+* 
+
+```{r dat_1}
+# Develop a dataset with all relevant variables 
+
+#every respondents first work trip mode, travel time, 
+#the respondent's income, age, gender 
+#attributes of the mode and attribute of the decision maker 
+
+# Want to look at the person_dat, but also want to include income, which is in the HH table. 
+# matching the datasets on HH ID number, which is the variable "SAMPN"
+per_hh_dat <- merge(per_dat, hh_dat,
+                    by.x = "SAMPN", #per_dat is the x
+                    by.y = "SAMPN", #hh_dat is the y
+                    all.x = TRUE,   #taking every row of X and finding the matching Y
+                    all.y = FALSE,  #Exclude rows in hh_dat that don't have a matching value in per_dat
+                    sort = FALSE)
+dim(per_hh_dat)
+head(per_hh_dat)
+```
+
 
 >Summarize your model results in a paragraph.
 
