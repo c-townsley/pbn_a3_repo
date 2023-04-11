@@ -48,6 +48,8 @@ library(dplyr)
 library(ggplot2)
 library(caret)
 library(MASS)
+library(corrplot)
+library(magrittr)
 
 Dat_A <- read_csv("https://raw.githubusercontent.com/c-townsley/pbn_a3_repo/main/Data/Chester_Urban_Growth.csv")
 ```
@@ -263,25 +265,44 @@ mod4_Acc
 ```
 <br>
 
-Let's try this another way. What happens if we let the machine do the work of sorting out what variables to include in the model?
-```{r training_set}
+Let's try this another way. What happens if we let the machine do the work of sorting out which variables to include in the model?
+```{r ML_Model1 training}
+Dat_B <- Dat_A %>% dplyr::select(-CHESCO, -X, -Y, -PCT_COLGRD, -binary)
+
 set.seed(3456)
-trainIndex <- createDataPartition(Dat_A$CHNG_URB, p = .70, list = FALSE, times = 1)
+trainIndex <- createDataPartition(Dat_B$DIST_INTER, p = .70, list = FALSE, times = 1)
 
-Dat_A_Train <- Dat_A[ trainIndex,]
-Dat_A_Test  <- Dat_A[-trainIndex,]
+Dat_B_Train <- Dat_B[ trainIndex,]
+Dat_B_Test  <- Dat_B[-trainIndex,]
+
+ML_Model1 <- glm(CHNG_URB ~ ., family="binomial"(link="logit"), data = Dat_B_Train)
+summary(ML_Model1)
+```
+This looks wack.
+
+Train another model, this time removing the variables we know are colinear.
+```{r ML_Model2 training}
+Dat_C <- Dat_B %>% dplyr::select(-DIST_REGRA, -DIST_RAILS, -INTERST800, -MEDINC90)
+
+set.seed(3456)
+trainIndex2 <- createDataPartition(Dat_C$DIST_INTER, p = .70, list = FALSE, times = 1)
+
+Dat_C_Train <- Dat_C[ trainIndex,]
+Dat_C_Test  <- Dat_C[-trainIndex,]
+
+ML_Model2 <- glm(CHNG_URB ~ ., family="binomial"(link="logit"), data = Dat_C_Train)
+summary(ML_Model2)
 ```
 
-```{r firstModel, warining = FALSE, message = FALSE}
-MechModel <- glm(CHNG_URB ~ ., 
-                    family="binomial"(link="logit"), data = Dat_A_Train)
-summary(MechModel)
-```
+DIST_INTER & DIST_REGRA & DIST_RAILS
+DIST_INTER & INTERST800
+MEDHSEVAL_ & MEDINC09
+
 
 ```{r confusion_matrix, message = FALSE, warning = FALSE}
-classProbs <- predict(MechModel, Dat_A_Test, type="response")
+classProbs <- predict(ML_Model2, Dat_C_Test, type="response")
 
-testProbs <- data.frame(obs = as.numeric(Dat_A_Test$CHNG_URB), pred = classProbs)
+testProbs <- data.frame(obs = as.numeric(Dat_C_Test$CHNG_URB), pred = classProbs)
 
 testProbs$predClass  = ifelse(testProbs$pred > .5 ,1,0)
 
