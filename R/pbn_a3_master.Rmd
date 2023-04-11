@@ -39,8 +39,6 @@ corresponds to a 500-meter raster cell location.
 
 ```{r part A packages and data, warning = FALSE, message = FALSE}
 #install packages
-#only run once
-
 
 #run every session
 library(tidyverse)
@@ -50,7 +48,8 @@ library(caret)
 library(MASS)
 library(corrplot)
 library(stargazer)
-
+library(broom)
+library(magrittr)
 
 Dat_A <- read_csv("https://raw.githubusercontent.com/c-townsley/pbn_a3_repo/main/Data/Chester_Urban_Growth.csv")
 ```
@@ -203,12 +202,8 @@ summary(mod4)
 ```
 The AIC increased on this model compared to the previous ones, so it seems like model 2 is the way to go.
 
-```{r Binomial Logit Model 2}
-##################################
-# CALCULATE PREDICTION ACCURACY
-##################################
-
-#####model1
+```{r Calculate Prediction Accuracy}
+#model1
 #calc the predicted probabilities based on the model
 pred <- as.data.frame(fitted(mod1))
 pred <- rename(pred, "prob" = "fitted(mod1)")
@@ -219,8 +214,7 @@ head(Dat_A)
 #calculate accuracy rate
 mod1_Acc <- (sum(Dat_A$URBAN01 == 1 & Dat_A$binary == 1) + sum(Dat_A$URBAN01 == 0 & Dat_A$binary == 0)) / nrow(Dat_A)
 
-
-#####model2
+#model2
 #calc the predicted probabilities based on the model
 pred <- as.data.frame(fitted(mod2))
 pred <- rename(pred, "prob" = "fitted(mod2)")
@@ -231,8 +225,7 @@ head(Dat_A)
 #calculate accuracy rate
 mod2_Acc <- (sum(Dat_A$URBAN01 == 1 & Dat_A$binary == 1) + sum(Dat_A$URBAN01 == 0 & Dat_A$binary == 0)) / nrow(Dat_A)
 
-
-#####model3 
+#model3 
 #calc the predicted probabilities based on the model
 pred <- as.data.frame(fitted(mod3))
 pred <- rename(pred, "prob" = "fitted(mod3)")
@@ -243,8 +236,7 @@ head(Dat_A)
 #calculate accuracy rate
 mod3_Acc <- (sum(Dat_A$URBAN01 == 1 & Dat_A$binary == 1) + sum(Dat_A$URBAN01 == 0 & Dat_A$binary == 0)) / nrow(Dat_A)
 
-
-#####model4
+#model4
 #calc the predicted probabilities based on the model
 pred <- as.data.frame(fitted(mod4))
 pred <- rename(pred, "prob" = "fitted(mod4)")
@@ -305,12 +297,12 @@ trainIndex3 <- createDataPartition(Dat_D$DIST_INTER, p = .70, list = FALSE, time
 Dat_D_Train <- Dat_D[ trainIndex3,]
 Dat_D_Test  <- Dat_D[-trainIndex3,]
 
-ML_Model3 <- glm(CHNG_URB ~ . - 1, family="binomial"(link="logit"), data = Dat_D_Train)
+ML_Model3 <- glm(CHNG_URB ~ . + 0, family="binomial"(link="logit"), data = Dat_D_Train)
 summary(ML_Model3)
 ```
 
 Train a fourth model, removing low-performing variables in the previous model.
-```{r ML_Model3}
+```{r ML_Model4}
 Dat_E <- Dat_D %>% dplyr::select(-MEDHSEVAL_, -PCT_HSB_19)
 
 set.seed(3456)
@@ -319,30 +311,79 @@ trainIndex4 <- createDataPartition(Dat_E$DIST_INTER, p = .70, list = FALSE, time
 Dat_E_Train <- Dat_E[ trainIndex4,]
 Dat_E_Test  <- Dat_E[-trainIndex4,]
 
-ML_Model4 <- glm(CHNG_URB ~ . - 1, family="binomial"(link="logit"), data = Dat_E_Train)
+ML_Model4 <- glm(CHNG_URB ~ . + 0, family="binomial"(link="logit"), data = Dat_E_Train)
 summary(ML_Model4)
 ```
+
 Compare Results of ALL Models
-```{r stargazer, results='asis'}
-stargazer(ML_Model1, ML_Model2, ML_Model3, ML_Model4, type="text", digits = 2, single.row = FALSE)
+```{r stargazer}
+stargazer(ML_Model2, type="text", digits = 2, single.row = FALSE)
 ```
 
 
-```{r confusion_matrix 1, message = FALSE, warning = FALSE}
+```{r confusion matricies, message = FALSE, warning = FALSE}
+###Model 1
 classProbs <- predict(ML_Model1, Dat_B_Test, type="response")
 
 testProbs <- data.frame(obs = as.numeric(Dat_B_Test$CHNG_URB), pred = classProbs)
 
 testProbs$predClass  = ifelse(testProbs$pred > .5 ,1,0)
 
-caret::confusionMatrix(reference = as.factor(testProbs$obs), 
+CM_Model1 <- caret::confusionMatrix(reference = as.factor(testProbs$obs), 
                        data = as.factor(testProbs$predClass), 
                        positive = "1")
+
+Model1_Acc <- CM_Model1$overall["Accuracy"]
+
+###Model 2
+classProbs <- predict(ML_Model2, Dat_C_Test, type="response")
+
+testProbs <- data.frame(obs = as.numeric(Dat_C_Test$CHNG_URB), pred = classProbs)
+
+testProbs$predClass  = ifelse(testProbs$pred > .5 ,1,0)
+
+CM_Model2 <- caret::confusionMatrix(reference = as.factor(testProbs$obs), 
+                       data = as.factor(testProbs$predClass), 
+                       positive = "1")
+
+Model2_Acc <- CM_Model2$overall["Accuracy"]
+
+###Model 3
+classProbs <- predict(ML_Model3, Dat_D_Test, type="response")
+
+testProbs <- data.frame(obs = as.numeric(Dat_D_Test$CHNG_URB), pred = classProbs)
+
+testProbs$predClass  = ifelse(testProbs$pred > .5 ,1,0)
+
+CM_Model3 <- caret::confusionMatrix(reference = as.factor(testProbs$obs), 
+                       data = as.factor(testProbs$predClass), 
+                       positive = "1")
+
+Model3_Acc <- CM_Model3$overall["Accuracy"]
+
+###Model 4
+classProbs <- predict(ML_Model4, Dat_E_Test, type="response")
+
+testProbs <- data.frame(obs = as.numeric(Dat_E_Test$CHNG_URB), pred = classProbs)
+
+testProbs$predClass  = ifelse(testProbs$pred > .5 ,1,0)
+
+CM_Model4 <- caret::confusionMatrix(reference = as.factor(testProbs$obs), 
+                       data = as.factor(testProbs$predClass), 
+                       positive = "1")
+
+Model4_Acc <- CM_Model4$overall["Accuracy"]
+
+print('Model 1')
+Model1_Acc
+print('Model 2')
+Model2_Acc
+print('Model 3')
+Model3_Acc
+print('Model 4')
+Model4_Acc
 ```
-
-
-
-Okay, so according to this confusion matrix, this model is 100% accurate. We may have an issue with over-fitness here, but it's certainly better than our manually developed model, which had an accuracy rate of 42%.
+From this summary of accuracy tests, it appears that Model 1 is the most accurate, at ~68%.
 
 
 <br>
