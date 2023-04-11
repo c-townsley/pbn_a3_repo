@@ -343,6 +343,11 @@ hh_dat <- read_csv("https://raw.githubusercontent.com/c-townsley/pbn_a3_repo/mai
 can explaining whether a commuter drove to work or used another mode. Use any
 and all independent variables you think appropriate, including dummy variables.
 
+```{r binomial logit 1}
+
+```
+
+
 >Summarize your model results in a paragraph.
 
 >Include a few plots or tables that show the probabilities of each choice versus changes in key variables in your model.
