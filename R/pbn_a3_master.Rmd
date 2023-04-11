@@ -361,6 +361,8 @@ in your model.
 affect their choice of transportation mode to work? To answer this
 question, we will use data from the DVRPC HHTS.
 
+TEST
+
 ```{r part B packages and data, warning = FALSE, message = FALSE}
 #install packages
 #only run once
