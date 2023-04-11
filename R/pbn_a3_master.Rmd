@@ -297,9 +297,19 @@ ML_Model2 <- glm(CHNG_URB ~ ., family="binomial"(link="logit"), data = Dat_C_Tra
 summary(ML_Model2)
 ```
 
-DIST_INTER & DIST_REGRA & DIST_RAILS
-DIST_INTER & INTERST800
-MEDHSEVAL_ & MEDINC09
+Train another model, this time removing the variables we know are colinear from our corr plot.
+```{r ML_Model2 training}
+Dat_C <- Dat_B %>% dplyr::select(-DIST_REGRA, -DIST_RAILS, -INTERST800, -MEDINC90)
+
+set.seed(3456)
+trainIndex2 <- createDataPartition(Dat_C$DIST_INTER, p = .70, list = FALSE, times = 1)
+
+Dat_C_Train <- Dat_C[ trainIndex2,]
+Dat_C_Test  <- Dat_C[-trainIndex2,]
+
+ML_Model2 <- glm(CHNG_URB ~ ., family="binomial"(link="logit"), data = Dat_C_Train)
+summary(ML_Model2)
+```
 
 !!!!!!!!!!!!!!!!!!!!!!!
 First, let's make a new dataset with all our chosen values for analysis.
