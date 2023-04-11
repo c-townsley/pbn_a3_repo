@@ -290,8 +290,9 @@ Dat_C_Test  <- Dat_C[-trainIndex2,]
 ML_Model2 <- glm(CHNG_URB ~ ., family="binomial"(link="logit"), data = Dat_C_Train)
 summary(ML_Model2)
 ```
+The AIC increased on Model2 relative to Model1...
 
-Train a third model, removing variables with poor performance indicated by high p-values, along with the intercept
+Train a third model, removing variables with poor performance indicated by high p-values, along with the intercept.
 ```{r ML_Model3}
 Dat_D <- Dat_C %>% dplyr::select(-CITBORO_10, -DIST_PASSR, -DIST_4LNE_, -PAL_WETLND, -PCT_WHITE_, -PCT_SFHOME)
 
@@ -305,55 +306,24 @@ ML_Model3 <- glm(CHNG_URB ~ . - 1, family="binomial"(link="logit"), data = Dat_D
 summary(ML_Model3)
 ```
 
-!!!!!!!!!!!!!!!!!!!!!!!
-First, let's make a new dataset with all our chosen values for analysis.
-```{r new dataset with analysis variables}
-CalFish_Clean <-  CalFish_Clean %>% 
-  mutate(Inundation_Bi_Fac = as.factor(Inundation_Bi)) %>%
-  select(DistRiver, Greyness, Slope, Elevation, FlowAcc, Inundation_Bi, DistRiverCutoff, ElevationCutoff, Inundation_Bi_Fac)
+Train a fourth model, removing low-performing variables in the previous model.
+```{r ML_Model3}
+Dat_E <- Dat_D %>% dplyr::select(-CITBORO_10, -DIST_PASSR, -DIST_4LNE_, -PAL_WETLND, -PCT_WHITE_, -PCT_SFHOME)
 
-CalFish_Clean_NoGeo <-  st_set_geometry(CalFish_Clean, NULL)
-
-CalFish_Clean_Analysis <-  CalFish_Clean_NoGeo %>%
-  select(DistRiver, Greyness, Slope, FlowAcc, ElevationCutoff, Inundation_Bi_Fac)
-```
-
-Now,let's Partition Training and Test Data
-```{r training_set}
 set.seed(3456)
-trainIndex <- createDataPartition(CalFish_Clean_Analysis$FlowAcc, p = .70,
-                                  list = FALSE,
-                                  times = 1)
+trainIndex3 <- createDataPartition(Dat_E$DIST_INTER, p = .70, list = FALSE, times = 1)
 
-FloodTrain <- CalFish_Clean_Analysis[ trainIndex,]
-FloodTest  <- CalFish_Clean_Analysis[-trainIndex,]
+Dat_E_Train <- Dat_E[ trainIndex3,]
+Dat_E_Test  <- Dat_E[-trainIndex3,]
+
+ML_Model3 <- glm(CHNG_URB ~ . - 1, family="binomial"(link="logit"), data = Dat_E_Train)
+summary(ML_Model3)
 ```
-
-Train Model
-```{r Train tModel, warining = FALSE, message = FALSE}
-# Train the model
-FloodModel <- glm(Inundation_Bi_Fac ~ ., family = "binomial"(link = "logit"), data = FloodTrain)
-summary(FloodModel)
-```
-
-
-
-=======
-Dat_A_Train <- Dat_A[ trainIndex,]
-Dat_A_Test  <- Dat_A[-trainIndex,]
-```
-
-```{r firstModel, warining = FALSE, message = FALSE}
-MechModel <- glm(CHNG_URB ~ ., 
-                    family="binomial"(link="logit"), data = Dat_A_Train)
-summary(MechModel)
-```
->>>>>>> 39e23ed257f8536c0df63191867d8d6374f9f894
 
 ```{r confusion_matrix, message = FALSE, warning = FALSE}
-classProbs <- predict(MechModel, Dat_A_Test, type="response")
+classProbs <- predict(ML_Model1, Dat_B_Test, type="response")
 
-testProbs <- data.frame(obs = as.numeric(Dat_A_Test$CHNG_URB), pred = classProbs)
+testProbs <- data.frame(obs = as.numeric(Dat_B_Test$CHNG_URB), pred = classProbs)
 
 testProbs$predClass  = ifelse(testProbs$pred > .5 ,1,0)
 
