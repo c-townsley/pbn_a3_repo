@@ -267,7 +267,7 @@ mod4_Acc
 
 Let's try this another way. What happens if we let the machine do the work of sorting out which variables to include in the model?
 ```{r ML_Model1 training}
-Dat_B <- Dat_A %>% dplyr::select(-CHESCO, -X, -Y, -PCT_COLGRD, -binary)
+Dat_B <- Dat_A %>% dplyr::select(-CHESCO, -X, -Y, -PCT_COLGRD, -binary, -FARM92, -PASTURE92, -FOREST92, -URBAN01, -URBAN92)
 
 set.seed(3456)
 trainIndex <- createDataPartition(Dat_B$DIST_INTER, p = .70, list = FALSE, times = 1)
@@ -278,17 +278,16 @@ Dat_B_Test  <- Dat_B[-trainIndex,]
 ML_Model1 <- glm(CHNG_URB ~ ., family="binomial"(link="logit"), data = Dat_B_Train)
 summary(ML_Model1)
 ```
-This looks wack.
 
-Train another model, this time removing the variables we know are colinear.
+Train another model, this time removing the variables we know are colinear from our corr plot.
 ```{r ML_Model2 training}
 Dat_C <- Dat_B %>% dplyr::select(-DIST_REGRA, -DIST_RAILS, -INTERST800, -MEDINC90)
 
 set.seed(3456)
 trainIndex2 <- createDataPartition(Dat_C$DIST_INTER, p = .70, list = FALSE, times = 1)
 
-Dat_C_Train <- Dat_C[ trainIndex,]
-Dat_C_Test  <- Dat_C[-trainIndex,]
+Dat_C_Train <- Dat_C[ trainIndex2,]
+Dat_C_Test  <- Dat_C[-trainIndex2,]
 
 ML_Model2 <- glm(CHNG_URB ~ ., family="binomial"(link="logit"), data = Dat_C_Train)
 summary(ML_Model2)
@@ -297,6 +296,39 @@ summary(ML_Model2)
 DIST_INTER & DIST_REGRA & DIST_RAILS
 DIST_INTER & INTERST800
 MEDHSEVAL_ & MEDINC09
+
+!!!!!!!!!!!!!!!!!!!!!!!
+First, let's make a new dataset with all our chosen values for analysis.
+```{r new dataset with analysis variables}
+CalFish_Clean <-  CalFish_Clean %>% 
+  mutate(Inundation_Bi_Fac = as.factor(Inundation_Bi)) %>%
+  select(DistRiver, Greyness, Slope, Elevation, FlowAcc, Inundation_Bi, DistRiverCutoff, ElevationCutoff, Inundation_Bi_Fac)
+
+CalFish_Clean_NoGeo <-  st_set_geometry(CalFish_Clean, NULL)
+
+CalFish_Clean_Analysis <-  CalFish_Clean_NoGeo %>%
+  select(DistRiver, Greyness, Slope, FlowAcc, ElevationCutoff, Inundation_Bi_Fac)
+```
+
+Now,let's Partition Training and Test Data
+```{r training_set}
+set.seed(3456)
+trainIndex <- createDataPartition(CalFish_Clean_Analysis$FlowAcc, p = .70,
+                                  list = FALSE,
+                                  times = 1)
+
+FloodTrain <- CalFish_Clean_Analysis[ trainIndex,]
+FloodTest  <- CalFish_Clean_Analysis[-trainIndex,]
+```
+
+Train Model
+```{r Train tModel, warining = FALSE, message = FALSE}
+# Train the model
+FloodModel <- glm(Inundation_Bi_Fac ~ ., family = "binomial"(link = "logit"), data = FloodTrain)
+summary(FloodModel)
+```
+
+
 
 
 ```{r confusion_matrix, message = FALSE, warning = FALSE}
