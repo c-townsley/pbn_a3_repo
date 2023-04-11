@@ -413,8 +413,6 @@ in your model.
 affect their choice of transportation mode to work? To answer this
 question, we will use data from the DVRPC HHTS.
 
-TEST
-
 ```{r part B packages and data, warning = FALSE, message = FALSE}
 #install packages
 #only run once
@@ -443,11 +441,6 @@ head(hh_dat)
 can explaining whether a commuter drove to work or used another mode. Use any
 and all independent variables you think appropriate, including dummy variables.
 
-Binomial Dependent Variable: Drove to work or got to work any other way.
-
-Independent variables of interest:
-* 
-
 ```{r dat_1}
 # Develop a dataset with all relevant variables 
 
@@ -463,9 +456,13 @@ per_hh_dat <- merge(per_dat, hh_dat,
                     all.x = TRUE,   #taking every row of X and finding the matching Y
                     all.y = FALSE,  #Exclude rows in hh_dat that don't have a matching value in per_dat
                     sort = FALSE)
-dim(per_hh_dat)
 head(per_hh_dat)
 ```
+
+Binomial Dependent Variable: Drove to work vs. got to work any other way.
+
+Independent variables of interest:
+* 
 
 
 >Summarize your model results in a paragraph.
