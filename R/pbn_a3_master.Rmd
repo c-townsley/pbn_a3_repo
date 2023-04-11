@@ -263,19 +263,13 @@ mod4_Acc
 ```
 <br>
 
-<<<<<<< HEAD
 Let's try this another way. What happens if we let the machine do the work of sorting out which variables to include in the model?
-```{r ML_Model1 training}
+```{r ML_Model1}
 Dat_B <- Dat_A %>% dplyr::select(-CHESCO, -X, -Y, -PCT_COLGRD, -binary, -FARM92, -PASTURE92, -FOREST92, -URBAN01, -URBAN92)
 
-=======
-Let's try this another way. What happens if we let the machine do the work of sorting out what variables to include in the model?
-```{r training_set}
->>>>>>> 39e23ed257f8536c0df63191867d8d6374f9f894
 set.seed(3456)
 trainIndex <- createDataPartition(Dat_A$CHNG_URB, p = .70, list = FALSE, times = 1)
 
-<<<<<<< HEAD
 Dat_B_Train <- Dat_B[ trainIndex,]
 Dat_B_Test  <- Dat_B[-trainIndex,]
 
@@ -284,7 +278,7 @@ summary(ML_Model1)
 ```
 
 Train another model, this time removing the variables we know are colinear from our corr plot.
-```{r ML_Model2 training}
+```{r ML_Model2}
 Dat_C <- Dat_B %>% dplyr::select(-DIST_REGRA, -DIST_RAILS, -INTERST800, -MEDINC90)
 
 set.seed(3456)
@@ -297,18 +291,18 @@ ML_Model2 <- glm(CHNG_URB ~ ., family="binomial"(link="logit"), data = Dat_C_Tra
 summary(ML_Model2)
 ```
 
-Train another model, this time removing the variables we know are colinear from our corr plot.
-```{r ML_Model2 training}
-Dat_C <- Dat_B %>% dplyr::select(-DIST_REGRA, -DIST_RAILS, -INTERST800, -MEDINC90)
+Train a third model, removing variables with poor performance indicated by high p-values, along with the intercept
+```{r ML_Model3}
+Dat_D <- Dat_C %>% dplyr::select(-CITBORO_10, -DIST_PASSR, -DIST_4LNE_, -PAL_WETLND, -PCT_WHITE_, -PCT_SFHOME)
 
 set.seed(3456)
-trainIndex2 <- createDataPartition(Dat_C$DIST_INTER, p = .70, list = FALSE, times = 1)
+trainIndex3 <- createDataPartition(Dat_D$DIST_INTER, p = .70, list = FALSE, times = 1)
 
-Dat_C_Train <- Dat_C[ trainIndex2,]
-Dat_C_Test  <- Dat_C[-trainIndex2,]
+Dat_D_Train <- Dat_D[ trainIndex3,]
+Dat_D_Test  <- Dat_D[-trainIndex3,]
 
-ML_Model2 <- glm(CHNG_URB ~ ., family="binomial"(link="logit"), data = Dat_C_Train)
-summary(ML_Model2)
+ML_Model3 <- glm(CHNG_URB ~ . - 1, family="binomial"(link="logit"), data = Dat_D_Train)
+summary(ML_Model3)
 ```
 
 !!!!!!!!!!!!!!!!!!!!!!!
