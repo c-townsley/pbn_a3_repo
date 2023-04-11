@@ -48,6 +48,9 @@ library(dplyr)
 library(ggplot2)
 library(caret)
 library(MASS)
+library(corrplot)
+library(stargazer)
+
 
 Dat_A <- read_csv("https://raw.githubusercontent.com/c-townsley/pbn_a3_repo/main/Data/Chester_Urban_Growth.csv")
 ```
@@ -308,19 +311,24 @@ summary(ML_Model3)
 
 Train a fourth model, removing low-performing variables in the previous model.
 ```{r ML_Model3}
-Dat_E <- Dat_D %>% dplyr::select(-CITBORO_10, -DIST_PASSR, -DIST_4LNE_, -PAL_WETLND, -PCT_WHITE_, -PCT_SFHOME)
+Dat_E <- Dat_D %>% dplyr::select(-MEDHSEVAL_, -PCT_HSB_19)
 
 set.seed(3456)
-trainIndex3 <- createDataPartition(Dat_E$DIST_INTER, p = .70, list = FALSE, times = 1)
+trainIndex4 <- createDataPartition(Dat_E$DIST_INTER, p = .70, list = FALSE, times = 1)
 
-Dat_E_Train <- Dat_E[ trainIndex3,]
-Dat_E_Test  <- Dat_E[-trainIndex3,]
+Dat_E_Train <- Dat_E[ trainIndex4,]
+Dat_E_Test  <- Dat_E[-trainIndex4,]
 
-ML_Model3 <- glm(CHNG_URB ~ . - 1, family="binomial"(link="logit"), data = Dat_E_Train)
-summary(ML_Model3)
+ML_Model4 <- glm(CHNG_URB ~ . - 1, family="binomial"(link="logit"), data = Dat_E_Train)
+summary(ML_Model4)
+```
+Compare Results of ALL Models
+```{r stargazer, results='asis'}
+stargazer(ML_Model1, ML_Model2, ML_Model3, ML_Model4, type="text", digits = 2, single.row = FALSE)
 ```
 
-```{r confusion_matrix, message = FALSE, warning = FALSE}
+
+```{r confusion_matrix 1, message = FALSE, warning = FALSE}
 classProbs <- predict(ML_Model1, Dat_B_Test, type="response")
 
 testProbs <- data.frame(obs = as.numeric(Dat_B_Test$CHNG_URB), pred = classProbs)
@@ -331,6 +339,9 @@ caret::confusionMatrix(reference = as.factor(testProbs$obs),
                        data = as.factor(testProbs$predClass), 
                        positive = "1")
 ```
+
+
+
 Okay, so according to this confusion matrix, this model is 100% accurate. We may have an issue with over-fitness here, but it's certainly better than our manually developed model, which had an accuracy rate of 42%.
 
 
