@@ -441,7 +441,7 @@ head(hh_dat)
 can explaining whether a commuter drove to work or used another mode. Use any
 and all independent variables you think appropriate, including dummy variables.
 
-```{r dat_1}
+```{r dat_1 setup}
 # Develop a dataset with all relevant variables 
 
 #every respondents first work trip mode, travel time, 
@@ -457,12 +457,49 @@ per_hh_dat <- merge(per_dat, hh_dat,
                     all.y = FALSE,  #Exclude rows in hh_dat that don't have a matching value in per_dat
                     sort = FALSE)
 head(per_hh_dat)
+
+# select variables of interest by removing variables related to second jobs and weekend work
+per_datClean <- per_hh_dat %>% 
+  dplyr::select(-"VETMO", -"W2TY", -"W2TYO",  -"W2TYP", -"W2LOC", -"W2IND", -"W2INO", -"W2OCC", -"W2OCO", -"W2DAY", -"W2HOM", -"W2HOO", -"W2ST", -"W2ET",  -"W1WKD3", -"W1WKD4", -"W1WKE", -"W1WKD1", -"W1WKD2")
+
+head(per_datClean)
 ```
 
 Binomial Dependent Variable: Drove to work vs. got to work any other way.
 
 Independent variables of interest:
 * 
+
+```{r trip data}
+##now we have to deal with all the transit mode info
+head(trip_dat,10)
+hist(trip_dat$TRAN1)
+hist(trip_dat$TRAN2)
+hist(trip_dat$TRAN3)
+
+#grab anyone who drives alone to work on their first one-way work trip of the day
+
+trip_dat$drivealone[(trip_dat$TRAN1==21 | trip_dat$TRAN2==21 | 
+                       trip_dat$TRAN3==21| trip_dat$TRAN4==21)]<-1
+trip_dat$drivealone[which(is.na(trip_dat$drivealone))]<-0
+head(trip_dat,20)
+
+#now let's pick out that first work trip
+CommuteTripsClean <- trip_dat[which(trip_dat$Dest_PTYE == 2), ]
+head(CommuteTripsClean)
+head(per_hh_dat)
+
+#let's merge in on person number and SAMPN
+## we have to merge together the SAMPN and the person number 
+#There is an X variable in the data frame already.
+#We can replicate this column by concatenating SAMPB and PERNO
+CommuteTripsClean$SAMPN_PER1 <- paste0(CommuteTripsClean$SAMPN, CommuteTripsClean$PERNO)
+head(CommuteTripsClean)
+
+##but still, some people take multiple work trips. Let's just grab the first work trip
+CommuteTripsClean <- subset(CommuteTripsClean, !duplicated(SAMPN_PER1))
+head(CommuteTripsClean, 20)
+```
 
 
 >Summarize your model results in a paragraph.
