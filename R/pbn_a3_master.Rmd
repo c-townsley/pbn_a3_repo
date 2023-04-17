@@ -436,12 +436,13 @@ head(hh_dat)
 
 <br>
 
-# B.1
->Develop the best (“leanest and meanest” and unbiased) binomial LOGIT model you
-can explaining whether a commuter drove to work or used another mode. Use any
-and all independent variables you think appropriate, including dummy variables.
+# B.1 Driving to Work vs. Other Modes
 
-```{r dat_1 setup}
+In this section, we develop a binomial LOGIT model to explain whether a commuter drove to work or used another mode.
+
+## B.1A Data Exploration and Processing
+
+```{r process per_dat and hh_dat}
 # Develop a dataset with all relevant variables 
 
 #every respondents first work trip mode, travel time, 
@@ -458,48 +459,166 @@ per_hh_dat <- merge(per_dat, hh_dat,
                     sort = FALSE)
 head(per_hh_dat)
 
-# select variables of interest by removing variables related to second jobs and weekend work
-per_datClean <- per_hh_dat %>% 
-  dplyr::select(-"VETMO", -"W2TY", -"W2TYO",  -"W2TYP", -"W2LOC", -"W2IND", -"W2INO", -"W2OCC", -"W2OCO", -"W2DAY", -"W2HOM", -"W2HOO", -"W2ST", -"W2ET",  -"W1WKD3", -"W1WKD4", -"W1WKE", -"W1WKD1", -"W1WKD2")
+#select variables of interest
+per_hh_clean <- per_hh_dat %>% 
+  dplyr::select(SAMPN, PERNO, GEND, AGE, INCOM, W1CPK, W1EPK, TRNST, VTRAN, TRNCT, WSTIM, WETIM)
 
-head(per_datClean)
+#combine SAMPN and PERNO
+per_hh_clean$SAMPN_PER <- paste0(per_hh_clean$SAMPN, per_hh_clean$PERNO) 
+
+#remove NAs
+per_hh_clean$INCOM[which(is.na(per_hh_clean$INCOM))]<-0
+
+summary(per_hh_clean)
+glimpse(per_hh_clean)
 ```
 
-Binomial Dependent Variable: Drove to work vs. got to work any other way.
-
-Independent variables of interest:
-* 
-
-```{r trip data}
-##now we have to deal with all the transit mode info
+```{r explore transit mode data}
 head(trip_dat,10)
 hist(trip_dat$TRAN1)
 hist(trip_dat$TRAN2)
 hist(trip_dat$TRAN3)
+```
 
+
+```{r trip data cleaning}
 #grab anyone who drives alone to work on their first one-way work trip of the day
-
 trip_dat$drivealone[(trip_dat$TRAN1==21 | trip_dat$TRAN2==21 | 
                        trip_dat$TRAN3==21| trip_dat$TRAN4==21)]<-1
-trip_dat$drivealone[which(is.na(trip_dat$drivealone))]<-0
-head(trip_dat,20)
+trip_dat$drivealone[which(is.na(trip_dat$drivealone))]<-0 #Remove NAs
 
 #now let's pick out that first work trip
 CommuteTripsClean <- trip_dat[which(trip_dat$Dest_PTYE == 2), ]
-head(CommuteTripsClean)
-head(per_hh_dat)
 
 #let's merge in on person number and SAMPN
-## we have to merge together the SAMPN and the person number 
+#we have to merge together the SAMPN and the person number 
 #There is an X variable in the data frame already.
 #We can replicate this column by concatenating SAMPB and PERNO
-CommuteTripsClean$SAMPN_PER1 <- paste0(CommuteTripsClean$SAMPN, CommuteTripsClean$PERNO)
-head(CommuteTripsClean)
+CommuteTripsClean$SAMPN_PER <- paste0(CommuteTripsClean$SAMPN, CommuteTripsClean$PERNO)
 
-##but still, some people take multiple work trips. Let's just grab the first work trip
-CommuteTripsClean <- subset(CommuteTripsClean, !duplicated(SAMPN_PER1))
-head(CommuteTripsClean, 20)
+#grab just the first work trip
+CommuteTripsClean <- subset(CommuteTripsClean, !duplicated(SAMPN_PER))
+
+#Retain just the columns we need from the trip data. 
+CommuteTripsClean2 <- CommuteTripsClean %>% 
+  select(SAMPN, PERNO, SAMPN_PER, TOLLA, TOLL, PARKC, PARKU, TRPDUR, drivealone)
+
+#remove NAs
+CommuteTripsClean2$TOLLA[which(is.na(CommuteTripsClean2$TOLLA))]<-0
+CommuteTripsClean2$TOLL[which(is.na(CommuteTripsClean2$TOLL))]<-0
+CommuteTripsClean2$PARKU[which(is.na(CommuteTripsClean2$PARKU))]<-0
+CommuteTripsClean2$PARKC[which(is.na(CommuteTripsClean2$PARKC))]<-0
+
+glimpse(CommuteTripsClean2)
+summary(CommuteTripsClean2)
 ```
+
+```{r merge CommuteTripsClean2 with per_hh_clean}
+#Merge CommuteTripsClean2 with per_hh_clean via SAMPN_PER
+CommuteTripsPerson <- merge(CommuteTripsClean2, 
+                            per_hh_clean,
+                            by.x = "SAMPN_PER", 
+                            by.y = "SAMPN_PER", 
+                            all.x = TRUE, 
+                            all.y = FALSE, 
+                            sort = FALSE)
+```
+
+<br>
+
+## B.1B Variable Selection
+
+>Develop the best (“leanest and meanest” and unbiased) binomial LOGIT model you
+can explaining whether a commuter drove to work or used another mode. Use any
+and all independent variables you think appropriate, including dummy variables.
+
+The binomial Dependent Variable for our model is `drivealone`: Which is whether the person drove to work vs. got to work any other way.
+
+Independent variables of interest:
+* `GEND`: Person X - Gender 
+* `AGE`: Person X - Age 
+* `INCOM`: total 1999 annual household income 
+* `TRPDUR`: trip duration
+* `TOLL`: presence of toll (Y/N)
+* `TOLLA`: toll amount
+* `PARKC`: parking cost ($)
+* `PARKU`: parking cost unit (per hour, day, week, month, or other) **Needs to be dummy variable**
+
+> Others to maybe add later from TRIP_PUB:
+SUBTR     Boarding Station
+ACCESS    Access to Boarding Station
+PAY1O     First Transit Payment - Other
+FARE1     Fare Amount 1 
+TRFR      Transfers
+PAY2      Second Transit Payment 
+PAY2O     Second Transit Payment - Other 
+FARE2     Fare Amount 2    
+PAY3      Third Transit Payment    
+PAY3O     Third Transit Payment - Other 
+FARE3     Fare Amount 3 
+EGRESS    Egress From Exit Station
+OEGRES    Other Egress 
+
+> Other to maybe add from per_hh_dat
+W1CPK     Cost to Park Vehicle at Work (dollar figure)  
+W1EPK     Employer Subsidize Parking 
+TRNST     Employer Subsidize Transit  
+VTRAN     Use Transit Subsidy
+TRNCT     Cost of Using Transit (dollar figure)
+WSTIM     Work Start Time
+WETIM     Work End Time 
+
+Test variables of interest for colinearity with independent variable (shown in descending order of cor. score)
+```{r Correlations with dependent variable}
+print("Presence of Toll")
+cor(CommuteTripsPerson$drivealone, CommuteTripsPerson$TOLL, use="complete.obs", method="pearson")
+print("Toll Amount")
+cor(CommuteTripsPerson$drivealone, CommuteTripsPerson$TOLLA, use="complete.obs", method="pearson")
+print("Trip Duration")
+cor(CommuteTripsPerson$drivealone, CommuteTripsPerson$TRPDUR, use="complete.obs", method="pearson")
+print("Income")
+cor(CommuteTripsPerson$drivealone, CommuteTripsPerson$INCOM, use="complete.obs", method="pearson")
+print("Gender")
+cor(CommuteTripsPerson$drivealone, CommuteTripsPerson$GEND, use="complete.obs", method="pearson")
+print("Age")
+cor(CommuteTripsPerson$drivealone, CommuteTripsPerson$AGE, use="complete.obs", method="pearson")
+print("Parking Cost")
+cor(CommuteTripsPerson$drivealone, CommuteTripsPerson$PARKC, use="complete.obs", method="pearson")
+```
+Let's test these variables for colinearity with the dependent variable and each other using a correlation  plot.
+```{r correlation matrix 2, fig.width=7, fig.height=5, fig.width=8}
+#make matrix of variables we're testing
+mod_A_vars <- CommuteTripsPerson %>% 
+  dplyr::select(drivealone, TOLL, TOLLA, TRPDUR, INCOM, GEND, AGE, PARKC)
+
+#r clear Nans and Inf values
+mod_A_vars[sapply(mod_A_vars, is.na)] <- 0
+mod_A_vars[sapply(mod_A_vars, is.nan)] <- 0
+mod_A_vars[sapply(mod_A_vars, is.infinite)] <- 0
+
+any(is.na(mod_A_vars))
+
+#compute correlation matrix
+cormatrix2 <- cor(mod_A_vars) %>% 
+  round(., 2)
+
+#plot a correlogram
+corrplot(cormatrix2, method = "circle", type = "lower", order = "hclust", 
+         tl.col = "black", tl.srt = 45)
+```
+
+This plot shows that the following variables exhibit correlation with each other, meaning that their inclusion in the model is mutually exclusive.
+
+<br>
+
+## B.1C Binomial Logit Model
+
+```{r binomial logit model 1}
+mod_A <- glm ( drivealone ~ AGE+GEND+TRPDUR+INCOM+TOLLA+TOLL+PARKC, data=CommuteTripsPerson, family = binomial)
+summary(mod_A)
+```
+
+
 
 
 >Summarize your model results in a paragraph.
@@ -513,7 +632,7 @@ one-way work trip of the day, but there are others methods to handle this).
 
 <br>
 
-# B.2
+# B.2 Walking or Biking to Work vs. Using Other Modes
 >Develop a second binomial LOGIT model explaining whether a commuter
 walked/biked to work or used another mode. Use any and all independent variables
 you think appropriate, including dummy variables.
@@ -527,7 +646,7 @@ Venture some reasons for the differences.
 
 <br>
 
-# B.3
+# B.3 Multi-nomial LOGIT
 >Develop the best (“leanest and meanest” and unbiased) multi-nomial LOGIT model
 you can explaining whether a traveler drove to work, carpooled, took public transit,
 or walked or biked. Use any and all independent variables you think appropriate,
