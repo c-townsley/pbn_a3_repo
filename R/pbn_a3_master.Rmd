@@ -50,6 +50,8 @@ library(corrplot)
 library(stargazer)
 library(broom)
 library(magrittr)
+library(raster)
+library(sp)
 
 Dat_A <- read_csv("https://raw.githubusercontent.com/c-townsley/pbn_a3_repo/main/Data/Chester_Urban_Growth.csv")
 ```
@@ -59,7 +61,7 @@ Dat_A <- read_csv("https://raw.githubusercontent.com/c-townsley/pbn_a3_repo/main
 ## A.1
 >Read the data into R. Run descriptive statistics as necessary.
 
-```{r packages data and colors, warning = FALSE, message = FALSE}
+```{r summarize data, warning = FALSE, message = FALSE}
 summary(Dat_A)
 ```
 
@@ -297,7 +299,7 @@ trainIndex3 <- createDataPartition(Dat_D$DIST_INTER, p = .70, list = FALSE, time
 Dat_D_Train <- Dat_D[ trainIndex3,]
 Dat_D_Test  <- Dat_D[-trainIndex3,]
 
-ML_Model3 <- glm(CHNG_URB ~ . + 0, family="binomial"(link="logit"), data = Dat_D_Train)
+ML_Model3 <- glm(CHNG_URB ~ ., family="binomial"(link="logit"), data = Dat_D_Train)
 summary(ML_Model3)
 ```
 
@@ -311,15 +313,52 @@ trainIndex4 <- createDataPartition(Dat_E$DIST_INTER, p = .70, list = FALSE, time
 Dat_E_Train <- Dat_E[ trainIndex4,]
 Dat_E_Test  <- Dat_E[-trainIndex4,]
 
-ML_Model4 <- glm(CHNG_URB ~ . + 0, family="binomial"(link="logit"), data = Dat_E_Train)
+ML_Model4 <- glm(CHNG_URB ~ ., family="binomial"(link="logit"), data = Dat_E_Train)
 summary(ML_Model4)
 ```
 
-Compare Results of ALL Models
-```{r stargazer}
-stargazer(ML_Model2, type="text", digits = 2, single.row = FALSE)
+Train a fifth model, removing the lowest-performing two variables.
+```{r ML_Model5}
+Dat_F <- Dat_E %>% dplyr::select(-PARKS500M, -POPDEN90)
+
+set.seed(3456)
+trainIndex5 <- createDataPartition(Dat_F$DIST_INTER, p = .70, list = FALSE, times = 1)
+
+Dat_F_Train <- Dat_F[ trainIndex5,]
+Dat_F_Test  <- Dat_F[-trainIndex5,]
+
+ML_Model5 <- glm(CHNG_URB ~ ., family="binomial"(link="logit"), data = Dat_F_Train)
+summary(ML_Model5)
 ```
 
+Train a sixth model, removing the lowest-performing two variables.
+```{r ML_Model6}
+Dat_G <- Dat_F %>% dplyr::select(-RAILSTN100, -PCT_POV_90)
+
+set.seed(3456)
+trainIndex6 <- createDataPartition(Dat_G$DIST_INTER, p = .70, list = FALSE, times = 1)
+
+Dat_G_Train <- Dat_G[ trainIndex6,]
+Dat_G_Test  <- Dat_G[-trainIndex6,]
+
+ML_Model6 <- glm(CHNG_URB ~ ., family="binomial"(link="logit"), data = Dat_G_Train)
+summary(ML_Model6)
+```
+Train a seventh model, removing the lowest-performing three variables.
+```{r ML_Model7}
+Dat_H <- Dat_G %>% dplyr::select(-FOURLNE300, -WATER100, -DIST_WATER)
+
+set.seed(3456)
+trainIndex7 <- createDataPartition(Dat_H$DIST_INTER, p = .70, list = FALSE, times = 1)
+
+Dat_H_Train <- Dat_H[ trainIndex7,]
+Dat_H_Test  <- Dat_H[-trainIndex7,]
+
+ML_Model7 <- glm(CHNG_URB ~ ., family="binomial"(link="logit"), data = Dat_H_Train)
+summary(ML_Model7)
+```
+
+Compare Results of ALL Models
 
 ```{r confusion matricies, message = FALSE, warning = FALSE}
 ###Model 1
@@ -374,6 +413,46 @@ CM_Model4 <- caret::confusionMatrix(reference = as.factor(testProbs$obs),
 
 Model4_Acc <- CM_Model4$overall["Accuracy"]
 
+###Model 5
+classProbs <- predict(ML_Model5, Dat_F_Test, type="response")
+
+testProbs <- data.frame(obs = as.numeric(Dat_F_Test$CHNG_URB), pred = classProbs)
+
+testProbs$predClass  = ifelse(testProbs$pred > .5 ,1,0)
+
+CM_Model5 <- caret::confusionMatrix(reference = as.factor(testProbs$obs), 
+                       data = as.factor(testProbs$predClass), 
+                       positive = "1")
+
+Model5_Acc <- CM_Model5$overall["Accuracy"]
+
+###Model 6
+classProbs <- predict(ML_Model6, Dat_E_Test, type="response")
+
+testProbs <- data.frame(obs = as.numeric(Dat_E_Test$CHNG_URB), pred = classProbs)
+
+testProbs$predClass  = ifelse(testProbs$pred > .5 ,1,0)
+
+CM_Model6 <- caret::confusionMatrix(reference = as.factor(testProbs$obs), 
+                       data = as.factor(testProbs$predClass), 
+                       positive = "1")
+
+Model6_Acc <- CM_Model6$overall["Accuracy"]
+
+###Model 7
+classProbs <- predict(ML_Model7, Dat_F_Test, type="response")
+
+testProbs <- data.frame(obs = as.numeric(Dat_F_Test$CHNG_URB), pred = classProbs)
+
+testProbs$predClass  = ifelse(testProbs$pred > .5 ,1,0)
+
+CM_Model7 <- caret::confusionMatrix(reference = as.factor(testProbs$obs), 
+                       data = as.factor(testProbs$predClass), 
+                       positive = "1")
+
+Model7_Acc <- CM_Model7$overall["Accuracy"]
+
+###Summarize Accuracy
 print('Model 1')
 Model1_Acc
 print('Model 2')
@@ -382,8 +461,14 @@ print('Model 3')
 Model3_Acc
 print('Model 4')
 Model4_Acc
+print('Model 5')
+Model5_Acc
+print('Model 6')
+Model6_Acc
+print('Model 7')
+Model7_Acc
 ```
-From this summary of accuracy tests, it appears that Model 1 is the most accurate, at ~68%.
+From this summary of accuracy tests, it appears that Model 1 is the most accurate, at ~68%. However, the decrease in accuracy incurred through omission of variables with each successive model generated seems to be worth it, with our 'leanest and meanest' model using only four variables to predict land conversion to urban with ~65% accuracy.
 
 
 <br>
@@ -394,6 +479,28 @@ well does your model fit the data? Which factors are most important in explainin
 use change in Chester County from 1992-2001? How do you know? Do you have any
 ideas for improving the performance of your model?
 
+Out of the 23 variables in this dataset, Model 7 uses only four variables to model land use change in Chester County from 1992-2001 with 65% accuracy. According to this model, the four most important factors in explaining land use change are Slope, Land within 300 meters of SEPTA regional rail lines, Distance to Interstate, and distance to parks.
+
+
+The estimate for the SLOPE variable is -0.3121, which means that for every one-unit increase in slope (percent), the log-odds of a pixel changing to urban (i.e., CHNG_URB being 1) between 1992 and 2001 decreases by 0.3121, holding other variables constant.
+
+To make this more interpretable, we can convert the log-odds to odds by taking the exponent of the coefficient: exp(-0.3121) ≈ 0.732
+
+This means that for every one-unit increase in slope, the odds of a pixel changing to urban between 1992 and 2001 are approximately 73.2% of the odds for the previous slope value, keeping all other predictors constant in the model.
+
+Put another way, all else equal, the odds of a given pixel changing to urban decrease by 26.8% for every 1% increase in slope.
+
+The simplest interpretation of this coefficient is that an increase in slope is associated with a decreased likelihood of a pixel becoming urban.
+
+For the rest of the values, let's keep it simple:
+
+REGRAIL300 (binary) has a coefficient of -1.016, meaning that a cell being located within 300 meters of a SEPTA regional rail line, is associated with a decreased likelihood of a pixel becoming urban.
+
+DIST_INTER (meters) has a coefficient of .00003284, meaning that the further a pixel is from the interstate, the more likely it is to become urban.
+This is likely due to the fact that areas closest to the interstate are already urban.
+
+DIST_PARKS (meters) has a coefficient of 0.00009018 meaning that the further a pixel is from a park, the more likely it is to become urban.
+This is likely due to the same phenomenon, since parks tend to be located in urban areas and also parks themselves are unlikely to urbanize.
 
 
 <br>
@@ -402,7 +509,62 @@ ideas for improving the performance of your model?
 >Include a few plots or tables that show the probabilities versus changes in key variables
 in your model.
 
+```{r predict and plot}
+Classprobs <- predict(ML_Model7, Dat_A, type="response")
 
+Prediction <- data.frame(obs = as.numeric(Dat_A$binary),
+                            pred = Classprobs)
+
+Prediction <- Prediction %>% 
+  mutate(id = row_number())
+
+Dat_A <- Dat_A %>% 
+  mutate(id = row_number())
+
+# Assuming 'id' is the key column
+Dat_A$id <- as.character(Dat_A$id)
+Prediction$id <- as.character(Prediction$id)
+
+# Join predictions to original dataframe
+Dat_Pred <- Dat_A %>%
+  left_join(Prediction, by = "id", copy = TRUE)
+```
+
+```{r}
+#transform dataframe with predictions into a raster
+Dat_Pred <- Dat_Pred %>% 
+  mutate(x = X) %>% 
+  mutate(y = Y)
+
+coordinates(Dat_Pred) <- ~x+y
+gridded(Dat_Pred) <- TRUE
+raster_layer <- raster(Dat_Pred)
+
+
+Prediction_Raster <- rasterFromXYZ(Dat_Pred)
+```
+```{r}
+
+# Remove the existing file if it exists
+output_file <- "/Users/oliveratwood/Box Sync/CPLN 6750 Land Use Env Modeling/FloodModel_Assignment/R_Output/CalgaryFishnet_Err.geojson"
+if (file.exists(output_file)) {file.remove(output_file)}
+
+# Write the new file using st_write()
+st_write(Dat_Pred, "/Users/oliveratwood/Box Sync/CPLN 6750 Land Use Env Modeling/FloodModel_Assignment/R_Output/CalgaryFishnet_Err.geojson")
+
+CalgaryFishnet_Pred$PredClass = ifelse(CalgaryFishnet_Pred$pred > .5 ,1,0)
+
+ggplot() + 
+  geom_sf(data=CalgaryFishnet_Pred, aes(fill=factor(ntile(pred,5))), colour=NA) +
+  geom_sf(data = CalgaryBounds, fill = "transparent", color = "red") +
+  scale_fill_manual(values = c("#edf8fb","#b3cde3","#8c96c6","#8856a7","#810f7c"),
+                    labels=as.character(quantile(CalgaryFishnet_Pred$pred,
+                                                 c(0.1,.2,.4,.6,.8),
+                                                 na.rm=T)),
+                    name="Predicted\nProbabilities(%)\n(Quintile\nBreaks)") +
+  labs(title="Predicted Inundated Areas Calgary") +
+  mapTheme
+```
 
 <br>
 <br>
