@@ -38,8 +38,6 @@ demographic data for Chester County, PA for 1992 and 2001. Each row in the datas
 corresponds to a 500-meter raster cell location.
 
 ```{r part A packages and data, warning = FALSE, message = FALSE}
-#install packages
-
 #run every session
 library(tidyverse)
 library(dplyr)
@@ -575,15 +573,7 @@ ggplot() +
 affect their choice of transportation mode to work? To answer this
 question, we will use data from the DVRPC HHTS.
 
-```{r part B packages and data, warning = FALSE, message = FALSE}
-#install packages
-#only run once
-
-
-#run every session
-library(tidyverse)
-library(dplyr)
-library(ggplot2)
+```{r part B data, warning = FALSE, message = FALSE}
 
 per_dat <- read_csv("https://raw.githubusercontent.com/c-townsley/pbn_a3_repo/main/Data/HH%20Travel%20Survey/per_pub.csv")
 
@@ -606,10 +596,6 @@ In this section, we develop a binomial LOGIT model to explain whether a commuter
 
 ```{r process per_dat and hh_dat}
 # Develop a dataset with all relevant variables 
-
-#every respondents first work trip mode, travel time, 
-#the respondent's income, age, gender 
-#attributes of the mode and attribute of the decision maker 
 
 # Want to look at the person_dat, but also want to include income, which is in the HH table. 
 # matching the datasets on HH ID number, which is the variable "SAMPN"
@@ -663,7 +649,7 @@ CommuteTripsClean <- subset(CommuteTripsClean, !duplicated(SAMPN_PER))
 
 #Retain just the columns we need from the trip data. 
 CommuteTripsClean2 <- CommuteTripsClean %>% 
-  select(SAMPN, PERNO, SAMPN_PER, TOLLA, TOLL, PARKC, PARKU, TRPDUR, drivealone)
+  dplyr::select(SAMPN, PERNO, SAMPN_PER, TOLLA, TOLL, PARKC, PARKU, TRPDUR, drivealone)
 
 #remove NAs
 CommuteTripsClean2$TOLLA[which(is.na(CommuteTripsClean2$TOLLA))]<-0
@@ -700,14 +686,14 @@ Ok to do drive alone instead of all driving. Just say how we define it
 The binomial Dependent Variable for our model is `drivealone`: Which is whether the person alone drove to work vs. got to work any other way.
 
 Independent variables of interest:
-* `GEND`: Person X - Gender **Needs to be dummy variable**
+* `GEND`: Person X - Gender
 * `AGE`: Person X - Age 
 * `INCOM`: total 1999 annual household income 
 * `TRPDUR`: trip duration
-* `TOLL`: presence of toll (Y/N) **Convert to binary**
+* `TOLL`: presence of toll (Y/N)
 * `TOLLA`: toll amount
 * `PARKC`: parking cost ($)
-* `PARKU`: parking cost unit (per hour, day, week, month, or other) **Needs to be dummy variable**
+* `PARKU`: parking cost unit (per hour, day, week, month, or other)
 
 > Others to maybe add later from TRIP_PUB:
 SUBTR     Boarding Station
@@ -733,32 +719,61 @@ TRNCT     Cost of Using Transit (dollar figure)
 WSTIM     Work Start Time
 WETIM     Work End Time 
 
-Test variables of interest for colinearity with independent variable (shown in descending order of cor. score)
+The values for `GEND`, `TOLL`, and `PARKU` are categorical, so we need to turn them into binary dummy variables to be able to use them in our models.
 
-**or plot them and remove outliers?**
+```{r B1 Dummy Vars}
+#Create dummy variables from GEND, TOLL, and PARKU
+CommuteTripsPerson <- CommuteTripsPerson %>% 
+  mutate(GEND_M = ifelse(GEND == 1, 1, 0)) %>% #create binary for male drivers
+  mutate(GEND_F = ifelse(GEND == 2, 1, 0)) %>% #create binary for female drivers
+  mutate(TOLL = ifelse(TOLL == 1, 1, 0)) %>% #create binary for tolls
+  mutate(PARKU_H = ifelse(PARKU == 1, 1, 0)) %>% #create binary for hourly parking
+  mutate(PARKU_D = ifelse(PARKU == 2, 1, 0)) %>% #create binary for daily parking
+  mutate(PARKU_W = ifelse(PARKU == 3, 1, 0)) %>% #create binary for weekly parking
+  mutate(PARKU_M = ifelse(PARKU == 4, 1, 0)) #create binary for monthly parking
+
+hist(CommuteTripsPerson$GEND_M)
+hist(CommuteTripsPerson$GEND_F)
+hist(CommuteTripsPerson$TOLL)
+hist(CommuteTripsPerson$PARKU)
+
+```
+
+
+Test variables of interest for colinearity with independent variable (shown in descending order of cor. score)
 
 ```{r Correlations with dependent variable}
 print("Presence of Toll")
 cor(CommuteTripsPerson$drivealone, CommuteTripsPerson$TOLL, use="complete.obs", method="pearson")
-print("Toll Amount")
-cor(CommuteTripsPerson$drivealone, CommuteTripsPerson$TOLLA, use="complete.obs", method="pearson")
 print("Trip Duration")
 cor(CommuteTripsPerson$drivealone, CommuteTripsPerson$TRPDUR, use="complete.obs", method="pearson")
+print("Toll Amount")
+cor(CommuteTripsPerson$drivealone, CommuteTripsPerson$TOLLA, use="complete.obs", method="pearson")
+print("Daily Parking")
+cor(CommuteTripsPerson$drivealone, CommuteTripsPerson$PARKU_D, use="complete.obs", method="pearson")
 print("Income")
 cor(CommuteTripsPerson$drivealone, CommuteTripsPerson$INCOM, use="complete.obs", method="pearson")
-print("Gender")
-cor(CommuteTripsPerson$drivealone, CommuteTripsPerson$GEND, use="complete.obs", method="pearson")
-print("Age")
-cor(CommuteTripsPerson$drivealone, CommuteTripsPerson$AGE, use="complete.obs", method="pearson")
+print("Gender - Female")
+cor(CommuteTripsPerson$drivealone, CommuteTripsPerson$GEND_F, use="complete.obs", method="pearson")
+print("Gender - Male")
+cor(CommuteTripsPerson$drivealone, CommuteTripsPerson$GEND_M, use="complete.obs", method="pearson")
+print("Monthly Parking")
+cor(CommuteTripsPerson$drivealone, CommuteTripsPerson$PARKU_M, use="complete.obs", method="pearson")
 print("Parking Cost")
 cor(CommuteTripsPerson$drivealone, CommuteTripsPerson$PARKC, use="complete.obs", method="pearson")
+print("Age")
+cor(CommuteTripsPerson$drivealone, CommuteTripsPerson$AGE, use="complete.obs", method="pearson")
+print("Hourly Parking")
+cor(CommuteTripsPerson$drivealone, CommuteTripsPerson$PARKU_H, use="complete.obs", method="pearson")
+print("Weekly Parking")
+cor(CommuteTripsPerson$drivealone, CommuteTripsPerson$PARKU_W, use="complete.obs", method="pearson")
 ```
 Let's test these variables for colinearity with the dependent variable and each other using a correlation  plot.
 
 ```{r correlation matrix 2, fig.width=7, fig.height=5, fig.width=8}
 #make matrix of variables we're testing
 mod_A_vars <- CommuteTripsPerson %>% 
-  dplyr::select(drivealone, TOLL, TOLLA, TRPDUR, INCOM, GEND, AGE, PARKC)
+  dplyr::select(drivealone, TOLL, TOLLA, TRPDUR, INCOM, GEND_F, GEND_M, AGE, PARKC, PARKU_H, PARKU_D, PARKU_W, PARKU_M)
 
 #r clear Nans and Inf values
 mod_A_vars[sapply(mod_A_vars, is.na)] <- 0
@@ -775,7 +790,6 @@ cormatrix2 <- cor(mod_A_vars) %>%
 corrplot(cormatrix2, method = "circle", type = "lower", order = "hclust", 
          tl.col = "black", tl.srt = 45)
 ```
-
 
 
 This plot shows that the presence of a toll and drive alone trips exhibit correlation with each other, meaning that their inclusion in the model is mutually exclusive.
