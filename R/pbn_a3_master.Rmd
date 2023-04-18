@@ -342,6 +342,7 @@ Dat_G_Test  <- Dat_G[-trainIndex6,]
 ML_Model6 <- glm(CHNG_URB ~ ., family="binomial"(link="logit"), data = Dat_G_Train)
 summary(ML_Model6)
 ```
+
 Train a seventh model, removing the lowest-performing three variables.
 ```{r ML_Model7}
 Dat_H <- Dat_G %>% dplyr::select(-FOURLNE300, -WATER100, -DIST_WATER)
@@ -507,62 +508,61 @@ This is likely due to the same phenomenon, since parks tend to be located in urb
 >Include a few plots or tables that show the probabilities versus changes in key variables
 in your model.
 
+Let's test the correlation of each of the four independent variables in Model 7.
+```{r final correlation tests}
+print("SLOPE")
+cor(Dat_H$CHNG_URB, Dat_H$SLOPE, use="complete.obs", method="pearson")
+print("REGRAIL300")
+cor(Dat_H$CHNG_URB, Dat_H$REGRAIL300, use="complete.obs", method="pearson")
+print("DIST_INTER")
+cor(Dat_H$CHNG_URB, Dat_H$DIST_INTER, use="complete.obs", method="pearson")
+print("DIST_PARKS")
+cor(Dat_H$CHNG_URB, Dat_H$DIST_PARKS, use="complete.obs", method="pearson")
+```
 ```{r predict and plot}
-Classprobs <- predict(ML_Model7, Dat_A, type="response")
 
-Prediction <- data.frame(obs = as.numeric(Dat_A$binary),
-                            pred = Classprobs)
+####Plot Predicted Change in probability of Urban Land Conversion based on Slope
 
-Prediction <- Prediction %>% 
-  mutate(id = row_number())
+#Scenario1: Slope by >300m from rail (0), 12530m (median) distance from interstate, 5161m (median) distance from parks
+newdat_gg<-data.frame(matrix(ncol = 4, nrow = nrow(Dat_H)))
+colnames(newdat_gg)<- c("SLOPE", "REGRAIL300", "DIST_INTER", "DIST_PARKS")
+newdat_gg$SLOPE <- Dat_H$SLOPE
+newdat_gg$REGRAIL300 <- 0
+newdat_gg$DIST_INTER <- 12530
+newdat_gg$DIST_PARKS <- 5161
 
-Dat_A <- Dat_A %>% 
-  mutate(id = row_number())
+#Scenario2: Slope by <300m from rail (1), 5590m (Q1) distance from interstate, 2500m (Q1) distance from parks
+newdat_gg_1<-data.frame(matrix(ncol = 4, nrow = nrow(Dat_H)))
+colnames(newdat_gg_1)<- c("SLOPE", "REGRAIL300", "DIST_INTER", "DIST_PARKS")
+newdat_gg_1$SLOPE <- Dat_H$SLOPE
+newdat_gg_1$REGRAIL300 <- 1
+newdat_gg_1$DIST_INTER <- 5590
+newdat_gg_1$DIST_PARKS <- 2500
 
-# Assuming 'id' is the key column
-Dat_A$id <- as.character(Dat_A$id)
-Prediction$id <- as.character(Prediction$id)
+#Scenario3: Slope by >300m from rail (0), 24076m (Q3) distance from interstate, 7106m (Q3) distance from parks
+newdat_gg_2<-data.frame(matrix(ncol = 4, nrow = nrow(Dat_H)))
+colnames(newdat_gg_2)<- c("SLOPE", "REGRAIL300", "DIST_INTER", "DIST_PARKS")
+newdat_gg_2$SLOPE <- Dat_H$SLOPE
+newdat_gg_2$REGRAIL300 <- 1
+newdat_gg_2$DIST_INTER <- 24076
+newdat_gg_2$DIST_PARKS <- 7106
 
-# Join predictions to original dataframe
-Dat_Pred <- Dat_A %>%
-  left_join(Prediction, by = "id", copy = TRUE)
+
+pred_dat<- data.frame(matrix(ncol = 4, nrow = nrow(Dat_H)))
+colnames(pred_dat)<- c("SLOPE", "Pred_SlopexNoRail_MedDInt_MedDPark", "Pred_SlopexRail_LowDInt_LowDPark", "Pred_SlopexNoRail_HiDInt_HiDPark")
+pred_dat$SLOPE<-Dat_H$SLOPE
+pred_dat$Pred_SlopexNoRail_MedDInt_MedDPark<- predict(ML_Model7, newdat_gg, type="response")
+pred_dat$Pred_SlopexRail_LowDInt_LowDPark<- predict(ML_Model7, newdat_gg_1, type="response")
+pred_dat$Pred_SlopexNoRail_HiDInt_HiDPark<- predict(ML_Model7, newdat_gg_2, type="response")
+
+dat <- gather(pred_dat, -SLOPE, key = "Scenario", value = "value")
+
+ggplot(dat, aes(x = SLOPE, y = value, colour = Scenario)) + 
+        geom_line() + ylim(0,1) +
+        xlab("Slope") + ylab("Predicted Probability of Urban Land Use Conversion")
 ```
 
-```{r}
-#transform dataframe with predictions into a raster
-Dat_Pred <- Dat_Pred %>% 
-  mutate(x = X) %>% 
-  mutate(y = Y)
 
-coordinates(Dat_Pred) <- ~x+y
-gridded(Dat_Pred) <- TRUE
-raster_layer <- raster(Dat_Pred)
-
-
-Prediction_Raster <- rasterFromXYZ(Dat_Pred)
-```
-```{r}
-
-# Remove the existing file if it exists
-output_file <- "/Users/oliveratwood/Box Sync/CPLN 6750 Land Use Env Modeling/FloodModel_Assignment/R_Output/CalgaryFishnet_Err.geojson"
-if (file.exists(output_file)) {file.remove(output_file)}
-
-# Write the new file using st_write()
-st_write(Dat_Pred, "/Users/oliveratwood/Box Sync/CPLN 6750 Land Use Env Modeling/FloodModel_Assignment/R_Output/CalgaryFishnet_Err.geojson")
-
-CalgaryFishnet_Pred$PredClass = ifelse(CalgaryFishnet_Pred$pred > .5 ,1,0)
-
-ggplot() + 
-  geom_sf(data=CalgaryFishnet_Pred, aes(fill=factor(ntile(pred,5))), colour=NA) +
-  geom_sf(data = CalgaryBounds, fill = "transparent", color = "red") +
-  scale_fill_manual(values = c("#edf8fb","#b3cde3","#8c96c6","#8856a7","#810f7c"),
-                    labels=as.character(quantile(CalgaryFishnet_Pred$pred,
-                                                 c(0.1,.2,.4,.6,.8),
-                                                 na.rm=T)),
-                    name="Predicted\nProbabilities(%)\n(Quintile\nBreaks)") +
-  labs(title="Predicted Inundated Areas Calgary") +
-  mapTheme
-```
 
 <br>
 <br>
