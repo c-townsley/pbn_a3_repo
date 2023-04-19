@@ -508,17 +508,6 @@ This is likely due to the same phenomenon, since parks tend to be located in urb
 >Include a few plots or tables that show the probabilities versus changes in key variables
 in your model.
 
-Let's test the correlation of each of the four independent variables in Model 7.
-```{r final correlation tests}
-print("SLOPE")
-cor(Dat_H$CHNG_URB, Dat_H$SLOPE, use="complete.obs", method="pearson")
-print("REGRAIL300")
-cor(Dat_H$CHNG_URB, Dat_H$REGRAIL300, use="complete.obs", method="pearson")
-print("DIST_INTER")
-cor(Dat_H$CHNG_URB, Dat_H$DIST_INTER, use="complete.obs", method="pearson")
-print("DIST_PARKS")
-cor(Dat_H$CHNG_URB, Dat_H$DIST_PARKS, use="complete.obs", method="pearson")
-```
 ```{r predict and plot}
 
 ####Plot Predicted Change in probability of Urban Land Conversion based on Slope
