@@ -646,6 +646,10 @@ CommuteTripsClean2$TOLL[which(is.na(CommuteTripsClean2$TOLL))]<-0
 CommuteTripsClean2$PARKU[which(is.na(CommuteTripsClean2$PARKU))]<-0
 CommuteTripsClean2$PARKC[which(is.na(CommuteTripsClean2$PARKC))]<-0
 
+#remove trips with a duration of zero
+CommuteTripsClean2 <- CommuteTripsClean2 %>% 
+  filter(TRPDUR != 0)
+
 glimpse(CommuteTripsClean2)
 summary(CommuteTripsClean2)
 ```
@@ -721,10 +725,10 @@ CommuteTripsPerson <- CommuteTripsPerson %>%
   mutate(PARKU_W = ifelse(PARKU == 3, 1, 0)) %>% #create binary for weekly parking
   mutate(PARKU_M = ifelse(PARKU == 4, 1, 0)) #create binary for monthly parking
 
-hist(CommuteTripsPerson$GEND_M)
-hist(CommuteTripsPerson$GEND_F)
+hist(CommuteTripsPerson$GEND)
 hist(CommuteTripsPerson$TOLL)
 hist(CommuteTripsPerson$PARKU)
+hist(CommuteTripsPerson$TRPDUR)
 
 ```
 
@@ -781,143 +785,136 @@ corrplot(cormatrix2, method = "circle", type = "lower", order = "hclust",
 ```
 
 
-This plot shows that the presence of a toll and drive alone trips exhibit correlation with each other, meaning that their inclusion in the model is mutually exclusive.
+This plot shows that the presence of a toll and toll amount exhibit correlation with each other, meaning that their inclusion in the model is mutually exclusive. Unsurprisingly, the same is true for male and female drivers. We pick the presence of a toll (`TOLL`) and female drivers (`GEND_F`) to include in our models, because they are more correlated with drive alone trips than their closely correlated pair.
+
+This yields are final list of independent variables to include in our models:
+* `GEND_F`: Female commuter
+* `AGE`: Age of commuter
+* `INCOM`: total 1999 annual household income 
+* `TRPDUR`: trip duration
+* `TOLL`: presence of toll
+* `PARKC`: parking cost ($)
+* `PARKU_H`: parking priced per hour
+* `PARKU_D`: parking priced per day
+* `PARKU_W`: parking priced per week
+* `PARKU_M`: parking priced per month
 
 <br>
 
 ## B.1C Develop Binomial Logit Model
 
-```{r binomial logit model 1}
-mod_A <- glm ( drivealone ~ AGE+GEND+TRPDUR+INCOM+TOLLA+PARKC, data=CommuteTripsPerson, family = binomial)
+We develop a binomial logit model to XX.
+
+First, we create a baseline model, called `mod_A`, that includes all of our variables of interest.
+
+```{r B1 mod1}
+mod_A <- glm ( drivealone ~ AGE + GEND_F + TRPDUR + INCOM + TOLL + PARKC +
+                PARKU_H + PARKU_D + PARKU_W + PARKU_M,
+               data=CommuteTripsPerson, family = binomial)
 print("mod_A")
 summary(mod_A)
+```
+We see that many of the variables included in `mod_A` lack significance.
 
+Let's try to whittle these down with automated backwards selection using `drop1`.
+
+```{r B1 drop1}
 #Use drop1 to decide which variables to remove
 #LRT shows the change in deviance, so a large LRT and small p-value means we should keep the variable in the model, and a small LRT and/or large p-value means cut it
-drop1(mod, test="Chisq")
-
-mod_B <- glm ( drivealone ~ AGE, data=CommuteTripsPerson, family = binomial)
-print("mod_B")
-summary(mod_B)
-
-mod_C <- glm ( drivealone ~ GEND, data=CommuteTripsPerson, family = binomial)
-print("mod_C")
-summary(mod_C)
-
-mod_D <- glm ( drivealone ~ GEND + TRPDUR, data=CommuteTripsPerson, family = binomial)
-print("mod_D")
-summary(mod_D)
-
-mod_E <- glm ( drivealone ~ GEND + TRPDUR + INCOM, data=CommuteTripsPerson, family = binomial)
-print("mod_E")
-summary(mod_E)
-
-mod_F <- glm ( drivealone ~ GEND + TRPDUR + INCOM + TOLLA, data=CommuteTripsPerson, family = binomial)
-print("mod_F")
-summary(mod_F)
-
-mod_G <- glm ( drivealone ~ GEND + TRPDUR + INCOM + PARKC, data=CommuteTripsPerson, family = binomial)
-print("mod_G")
-summary(mod_G)
-
-mod_H <- glm ( drivealone ~ AGE + TRPDUR + INCOM, data=CommuteTripsPerson, family = binomial)
-print("mod_H")
-summary(mod_H)
-
-#mod_E seems to be the most significant one
+drop1(mod_A, test="Chisq")
 ```
-Interpret model results
+Running `drop1` gives us some useful information. We see that if we drop no variables from the model, the AIC is 2698.4. Furthermore, we want to keep variables in the model that have a large LRT (suggesting XX) and small p-value (suggesting statistical significance).
+
+We run a new model with just `GEND_F`, `TRPDUR`, `INCOM`, and `TOLL` based on these results.
+
+```{r B1 mod2}
+mod_B <- glm ( drivealone ~  GEND_F + TRPDUR + INCOM + TOLL,
+               data=CommuteTripsPerson, family = binomial)
+summary(mod_B)
+```
+Interestingly, in this new model, all of the variables are significant except `TOLL` and we see that the AIC has increased slightly.
+
+Let's see what happens if we run one more model without `TOLL`.
+
+```{r r B1 mod3}
+mod_C <- glm ( drivealone ~ GEND_F + TRPDUR + INCOM, data=CommuteTripsPerson, family = binomial)
+summary(mod_C)
+```
+In this third model, all of the variables are significant, but the AIC has increased slightly again.
+
+<br>
+
+## B.1D Interpret Model Results
+
 
 ```{r mod plots}
-# now, if you plot just the model fit using the existing data, you get:
-points (CommuteTripsPerson$TRPDUR, fitted (mod_H), col="red")
+mod_gg1 <- data.frame(matrix(ncol = 3, nrow = nrow(CommuteTripsPerson)))
+colnames(mod_gg1) <- c("TRPDUR", "INCOM", "GEND_F")
+mod_gg1$TRPDUR <- CommuteTripsPerson$TRPDUR
+mod_gg1$INCOM <- mean(CommuteTripsPerson$INCOM)
+mod_gg1$GEND_F <- 1
 
-####What about doing this in ggplot?
-newdat_gg <- data.frame(matrix(ncol = 3, nrow = nrow(CommuteTripsPerson)))
-colnames(newdat_gg) <- c("TRPDUR", "INCOM", "AGE")
-newdat_gg$TRPDUR <- CommuteTripsPerson$TRPDUR
-newdat_gg$INCOME <- 50000
-newdat_gg$AGE <- mean(CommuteTripsPerson$AGE)
-
-newdat_gg_1 <- data.frame(matrix(ncol = 3, nrow = nrow(CommuteTripsPerson)))
-colnames(newdat_gg_1) <- c("TRPDUR", "INCOM", "AGE")
-newdat_gg_1$TRPDUR <- CommuteTripsPerson$TRPDUR
-newdat_gg_1$INCOME <- 50000
-newdat_gg_1$AGE <- 23
-
-newdat_gg_2 <- data.frame(matrix(ncol = 3, nrow = nrow(CommuteTripsPerson)))
-colnames(newdat_gg_2)<- c("TRPDUR", "INCOM", "AGE")
-newdat_gg_2$TRPDUR <- CommuteTripsPerson$TRPDUR
-newdat_gg_2$INCOME <- 50000
-newdat_gg_2$AGE <- 60
+mod_gg2 <- data.frame(matrix(ncol = 3, nrow = nrow(CommuteTripsPerson)))
+colnames(mod_gg2) <- c("TRPDUR", "INCOM", "GEND_F")
+mod_gg2$TRPDUR <- CommuteTripsPerson$TRPDUR
+mod_gg2$INCOM <- mean(CommuteTripsPerson$INCOM)
+mod_gg2$GEND_F <- 0
 
 #Predict results based on models
-pred_dat <- data.frame(matrix(ncol = 4, nrow = nrow(CommuteTripsPerson)))
-colnames(pred_dat) <- c("TRPDUR", "Pred_Age43_Inc50K", "Pred_Age23_Inc50K", "Pred_Age60_Inc50K")
+pred_dat <- data.frame(matrix(ncol = 3, nrow = nrow(CommuteTripsPerson)))
+colnames(pred_dat) <- c("TRPDUR", "Pred_GendF_Inc50K", "Pred_GendM_Inc50K")
 pred_dat$TRPDUR <- CommuteTripsPerson$TRPDUR
-pred_dat$Pred_Age43_Inc50K <- predict(mod_H, newdat_gg, type="response") #store predicted probabilities in new column
-pred_dat$Pred_Age23_Inc50K <- predict(mod_H, newdat_gg_1, type="response")
-pred_dat$Pred_Age60_Inc50K <- predict(mod_H, newdat_gg_2, type="response")
+pred_dat$Pred_GendF_Inc50K <- predict(mod_C, mod_gg1, type="response") #store predicted probabilities in new column
+pred_dat$Pred_GendM_Inc50K <- predict(mod_C, mod_gg2, type="response")
 
-?predict
+pred_dat_wd <- pred_dat %>% 
+  pivot_longer(!TRPDUR, names_to = "Scenario")
 
-dat <- gather(pred_dat, -TRPDUR, key = "Scenario", value = "value") #gather is old syntax for going from long to wide or vice versa (new is "pivot_longer/pivot_wider")
-
-ggplot(dat, aes(x = TRPDUR, y = value, colour = Scenario)) + 
+ggplot(pred_dat_wd, aes(x = TRPDUR, y = value, colour = Scenario)) + 
         geom_line() + ylim(0,1) +
-        xlab("Trip Duration") + ylab("Predicted Probability of Drive Alone")
+        xlab("Trip Duration") + ylab("Predicted Probability of Drive Alone") +
+  theme_bw()
 ```
+Our model suggests that if income is constant, men are more likely to drive alone to work no matter the length of their trip. 
 
-Prediction
-
-```{r predict results}
-#Predict results based on models
-pred_dat <- data.frame(matrix(ncol = 4, nrow = nrow(CommuteTripsPerson)))
-colnames(pred_dat) <- c("TRPDUR", "Pred_Age43_Inc50K", "Pred_Age23_Inc50K", "Pred_Age60_Inc50K")
-pred_dat$TRPDUR <- CommuteTripsPerson$TRPDUR
-pred_dat$Pred_Age43_Inc50K<- predict(mod_E, newdat_gg, type="response") #store predicted probabilities in new column
-pred_dat$Pred_Age23_Inc50K<- predict(mod_E, newdat_gg_1, type="response")
-pred_dat$Pred_Age60_Inc50K<- predict(mod_E, newdat_gg_2, type="response")
-
-?predict
-```
-
-Calculate Prediction Accuracy
+**Prediction Accuracy**
+Calculating our mode's prediction accuracy gives us an accuracy rate of 86% - pretty good!
 
 ```{r prediction accuracy}
-pred <- as.data.frame(fitted(mod))
-pred <- rename(pred, "prob" = "fitted(mod)")
-pred <- mutate(pred, "binary" = ifelse(prob < 0.5, 0, 1)) #if predicted probabilities are <0.5, then classify as zero, otherwise classify as 1
+predC <- as.data.frame(fitted(mod_C))
+predC <- rename(pred, "prob" = "fitted(mod_C)")
+predC <- mutate(pred, "binary" = ifelse(prob < 0.5, 0, 1)) #if predicted probabilities are <0.5, then classify as zero, otherwise classify as 1
 
 #append column to original data frame
-CommuteTripsPerson_clean$binary <- pred$binary
-head(CommuteTripsPerson_clean)
+CommuteTripsPerson$binary <- predC$binary
+head(CommuteTripsPerson)
 
-#accuracy rate - 86% - pretty high - yay!
-(sum(CommuteTripsPerson_clean$drivealone == 1 & CommuteTripsPerson_clean$binary == 1) + 
-    sum(CommuteTripsPerson_clean$drivealone == 0 & CommuteTripsPerson_clean$binary == 0)) /
-  nrow(CommuteTripsPerson_clean)
+#accuracy rate
+(sum(CommuteTripsPerson$drivealone == 1 & CommuteTripsPerson$binary == 1) + 
+    sum(CommuteTripsPerson$drivealone == 0 & CommuteTripsPerson$binary == 0)) /
+  nrow(CommuteTripsPerson)
 ```
 
-Check model fit (with ANOVA?)
+Check model fit with ANOVA
+```{r Check fit wANOVA}
+anova(mod_A, mod_B, mod_C, test="Chisq")
+```
 
-Interpret coefficients
-```{r interpret coeficient mod_H}
+
+**Interpret coefficients**
+```{r interpret coeficient mod_C}
 #if exp(coef) = .8:  a unit increase in X is associated with 
-#a 20% decline in the odds ratio#CHANGE!
+#a 20% decline in the odds ratio
 #if exp(coef)  = 1.5:  a unit increase in X is associated with 
 #a 50% increase in the odds ratio
 #percent change in the odds ratio 
-100 * (exp(coef(mod))-1)
+100 * (exp(coef(mod_C))-1)
 ```
-
+The coefficients of our model suggest that the odds ratio of a person driving alone to work is 39% *lower* if they are female, a unit increase in trip duration *decreases* the odds ratio of someone driving alone to work by 1%, and a unit increase in income *increases* the odds ratio of a person driving alone to work by 4%.
 
 >Summarize your model results in a paragraph.
 
 >Include a few plots or tables that show the probabilities of each choice versus changes in key variables in your model.
-
->NOTE: THIS MAY REQUIRE YOU TO LOOK THROUGH THE META_DATA. It requires
-selecting the observations from the trip table that correspond to a person’s work trip.
 
 <br>
 
