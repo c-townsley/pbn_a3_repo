@@ -1593,6 +1593,14 @@ summary(mod.int)
 #only alt. specific
 mod <- mlogit (mode ~ time | 1, data = datMNL)
 summary(mod)
+
+#only decision maker (individual) specific
+mod1 <- mlogit (mode ~ 1 | AGE + INCOME, data = datMNL)
+summary(mod1)
+
+#both alternative and individual specific
+mod1 <- mlogit (mode ~ time | AGE + INCOME, data = datMNL)
+summary(mod1)
 ```
 
 
