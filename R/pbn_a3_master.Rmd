@@ -784,6 +784,7 @@ mod_A_vars[sapply(mod_A_vars, is.na)] <- 0
 mod_A_vars[sapply(mod_A_vars, is.nan)] <- 0
 mod_A_vars[sapply(mod_A_vars, is.infinite)] <- 0
 
+#Check for NAs
 any(is.na(mod_A_vars))
 
 #compute correlation matrix
@@ -1313,8 +1314,6 @@ trip_dat <- trip_dat %>%
     TRUE ~ 0
   ))
 
-trip_dat$nonmoto[which(is.na(trip_dat$nonmoto))] <-0 #Remove NAs
-
 #drive alone
 trip_dat <- trip_dat %>% 
   mutate(drivealone = case_when(
@@ -1324,8 +1323,6 @@ trip_dat <- trip_dat %>%
     TRAN4==21 ~ 1,
     TRUE ~ 0
   ))
-
-trip_dat$drivealone[which(is.na(trip_dat$drivealone))] <-0 #Remove NAs
 
 #carpool
 trip_dat <- trip_dat %>% 
@@ -1340,8 +1337,6 @@ trip_dat <- trip_dat %>%
     TRAN4==31 ~ 1,
     TRUE ~ 0
   ))
-
-trip_dat$carpool[which(is.na(trip_dat$carpool))] <-0 #Remove NAs
 
 #transit
 #assume transit is 
@@ -1374,8 +1369,6 @@ trip_dat <- trip_dat %>%
     TRAN4==52 ~ 1,
     TRUE ~ 0
   ))
-
-trip_dat$transit[which(is.na(trip_dat$transit))] <-0 #Remove NAs
 
 ## if both are true, let's give it to transit, makes the most sense 
 trip_dat$drivealone[trip_dat$transit==1 & trip_dat$drivealone==1]<-0
@@ -1473,16 +1466,33 @@ max(CommuteTripsPerson$check)
 CommuteTripsPerson <- CommuteTripsPerson %>% 
   dplyr::select(SAMPN.x, PERNO.x, AGE, GEND, INCOME, SAMPN_PER, TOLLA, TOLL, PARKC, PARKU, PRKUO, TRPDUR, drivealone, nonmoto, transit, carpool, Commute)
 
-#getting rid of NAs in income
-CommuteTripsPerson<-CommuteTripsPerson[-which(is.na(CommuteTripsPerson$INCOME)),]
-head(CommuteTripsPerson)
+#Check for NAs
+any(is.na(CommuteTripsPerson))
+
+#convert all NAs to zero
+CommuteTripsPerson[sapply(CommuteTripsPerson, is.na)] <- 0
+
+#all good? - yes.
+any(is.na(CommuteTripsPerson))
+
+#and let's check for outliers
+summary(CommuteTripsPerson)
+
+#remove outliers
+CommuteTripsPerson <-CommuteTripsPerson[which(CommuteTripsPerson$AGE %in% 1:110),]
+CommuteTripsPerson <-CommuteTripsPerson[which(CommuteTripsPerson$GEND %in% 1:2),]
+
+#Did it work? - yes.
+summary(CommuteTripsPerson)
 ```
+
 ```{r distance calcs}
 #we don't know the alternatives price and time 
 #let's just look at time. 
 #let's assume the following speeds: 
 ##this isn't great b/c it's really non-linear
-#auto: 30mph 
+#auto: 35mph 
+#carpool: 30mph
 #biking/non-mot: 12mph 
 #transit: 25mph
 
@@ -1507,7 +1517,7 @@ summary(Carpool$TRPDUR)
 summary(Transit$TRPDUR)
 
 #distance = speed * time in minutes
-Drivealone$distance<-(30/60)*Drivealone$TRPDUR
+Drivealone$distance<-(35/60)*Drivealone$TRPDUR
 head(Drivealone)
 Carpool$distance<-(30/60)*Carpool$TRPDUR
 head(Carpool)
@@ -1520,12 +1530,9 @@ head(Transit)
 dat <- rbind(NonMoto, Transit, Drivealone, Carpool)
 head(dat)
 
-#and remove some outliers
-dat <-dat[which(dat$AGE %in% 1:110),]
-
 #now we can calc a trip duration on every mode
 #in other words, this is what the trip duration WOULD be if the person had chosen each mode
-dat$time.auto <- dat$distance/30
+dat$time.auto <- dat$distance/35
 dat$time.carpool <-dat$distance/30
 dat$time.nonmoto <- dat$distance/12
 dat$time.transit <- dat$distance/25
@@ -1544,13 +1551,12 @@ head(dat)
 rownames(dat) <- NULL 
 head(dat)
 
-varsInterest <- c("AGE", "GEND", "INCOME", "time.auto", "time.carpool", "time.nonmoto", "time.transit", "mode")
-dat<-dat[ , which(names(dat) %in% varsInterest)]
+dat <- dat %>% 
+  select(AGE, GEND, INCOME, time.auto, time.carpool, time.nonmoto, time.transit, mode)
 head(dat)
 
-#dat <- dat %>% 
-  #select(AGE, GEND, INCOME, time.auto, time.carpool, time.nonmoto, time.transit, mode)
-#head(dat)
+dat_nopool <- dat %>% 
+  select(-time.carpool)
 ```
 
 ## Build Models
@@ -1559,10 +1565,17 @@ head(dat)
 require(mlogit)
 require(dfidx )
 
+#not in example code, maybe delete.
+dat <- dat %>%
+  mutate(mode = as.factor(mode))
+  
+
 head(dat)
 datMNL <- mlogit.data(dat, shape="wide", choice="mode", varying=c(4:7))
 
-datMNL <- dfidx(dat, shape="wide", choice="mode", varying= 4:7, idnames = c("chid", "alt"))
+datMNL_nopool <- mlogit.data(dat_nopool, shape="wide", choice="mode", varying=c(4:6))
+
+#datMNL <- dfidx(dat, shape="wide", choice="mode", varying= 4:7, idnames = c("chid", "alt"))
 
 #check it! 
 head(datMNL, 20)
@@ -1575,6 +1588,13 @@ summary(datMNL)
 mod.int <- mlogit (mode ~ 1, data = datMNL)
 summary(mod.int)
 ```
+```{r}
+#alt specific model
+#only alt. specific
+mod <- mlogit (mode ~ time | 1, data = datMNL)
+summary(mod)
+```
+
 
 >Summarize your model results in a few paragraphs. Include a few plots or tables
 that show the probabilities of each choice versus changes in key variables in your
