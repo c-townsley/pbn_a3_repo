@@ -551,25 +551,17 @@ ggplot(dat, aes(x = SLOPE, y = value, colour = Scenario)) +
 <br>
 <br>
 
-# Part B: 
->Charlie
->How do a person’s household, demographic, and trip characteristics
-affect their choice of transportation mode to work? To answer this
-question, we will use data from the DVRPC HHTS.
+# Part B: Transportation Mode Choice with Logit Models
 
-```{r part B data, warning = FALSE, message = FALSE}
-rm(list=ls())
+In the second part of this assignment, we use binomial and multinomial logit models to explore how a person's household, demographic, and trip characteristics affect their choice of transportation mode to work using data from the DVRPC Household Travel Survey (HHTS).
 
-per_dat <- read_csv("https://raw.githubusercontent.com/c-townsley/pbn_a3_repo/main/Data/HH%20Travel%20Survey/per_pub.csv")
+Section B.1 uses binomial logit models to explore the relationships between those who drive alone to work and household, demographic, and trip characteristics vs. those who do not drive alone to work.
 
-trip_dat <- read_csv("https://raw.githubusercontent.com/c-townsley/pbn_a3_repo/main/Data/HH%20Travel%20Survey/trip_pub.csv")
+Section B.2 also uses binomial logit models, but this time to compare walking and biking choice to other modes against similar characteristics.
 
-hh_dat <- read_csv("https://raw.githubusercontent.com/c-townsley/pbn_a3_repo/main/Data/HH%20Travel%20Survey/hh_pub_CSV.csv", col_names = TRUE)
+Section B.3 uses multinomial logit models to explain whether someone drove, carpooled, took public transit, or walked/biked to work.
 
-head(per_dat)
-head(trip_dat)
-head(hh_dat)
-```
+**Summarize findings here?**
 
 <br>
 
@@ -577,7 +569,21 @@ head(hh_dat)
 
 In this section, we develop a binomial LOGIT model to explain whether a commuter drove to work or used another mode.
 
-## B.1A Data Exploration and Processing
+```{r part B data, results = "hide"}
+rm(list=ls())
+
+per_dat <- read_csv("https://raw.githubusercontent.com/c-townsley/pbn_a3_repo/main/Data/HH%20Travel%20Survey/per_pub.csv")
+
+trip_dat <- read_csv("https://raw.githubusercontent.com/c-townsley/pbn_a3_repo/main/Data/HH%20Travel%20Survey/trip_pub.csv")
+
+hh_dat <- read_csv("https://raw.githubusercontent.com/c-townsley/pbn_a3_repo/main/Data/HH%20Travel%20Survey/hh_pub_CSV.csv", col_names = TRUE)
+```
+
+<br>
+
+## B.1A Processing and Exploration
+
+First, we create a dataframe that combines household and person level information.
 
 ```{r process per_dat and hh_dat}
 # Develop a dataset with all relevant variables 
@@ -590,7 +596,6 @@ per_hh_dat <- merge(per_dat, hh_dat,
                     all.x = TRUE,   #taking every row of X and finding the matching Y
                     all.y = FALSE,  #Exclude rows in hh_dat that don't have a matching value in per_dat
                     sort = FALSE)
-head(per_hh_dat)
 
 #select variables of interest
 per_hh_clean <- per_hh_dat %>% 
@@ -603,18 +608,67 @@ per_hh_clean$SAMPN_PER <- paste0(per_hh_clean$SAMPN, per_hh_clean$PERNO)
 per_hh_clean$INCOM[which(is.na(per_hh_clean$INCOM))]<-0
 per_hh_clean$TRNCT[which(is.na(per_hh_clean$TRNCT))] <- 0
 
-summary(per_hh_clean)
-glimpse(per_hh_clean)
+head(per_hh_clean)
 ```
+After selecting our variables of interest, we have a dataset with 10,391 observations and 13 variables.
 
-```{r explore transit mode data}
+Next we explore our trip data.
+
+```{r explore transit mode data head}
 head(trip_dat,10)
-hist(trip_dat$TRAN1)
-hist(trip_dat$TRAN2)
-hist(trip_dat$TRAN3)
+```
+So many variables! Let's look at the breakdown of transmit modes for the first, second, and third transit modes respondents took to work.
+
+```{r transit mode plot 1}
+trip_dat %>% 
+  filter(TRAN1 < 55) %>% 
+ggplot( aes(x=TRAN1)) +
+    geom_histogram( binwidth=3, fill="#6496b4", color="#0059c7", alpha=0.9) +
+    ggtitle("TRAN 1 Mode Choice") +
+    theme_bw()
+```
+```{r tran1 sum}
+print("TRAN1 Summary")
+summary(trip_dat$TRAN1)
+```
+Graphing and summarizing the first trip mode (`TRAN1`) shows that most people are driving themselves to work (code 21) but a noticeable amount of people are walking or biking (codes 11-14).
+
+<br>
+
+```{r transit mode plot 2}
+trip_dat %>% 
+    filter(TRAN2 < 60) %>% 
+ggplot( aes(x=TRAN2)) +
+    geom_histogram( binwidth=3, fill="#6496b4", color="#0059c7", alpha=0.9) +
+    ggtitle("TRAN 2 Mode Choice") +
+    theme_bw()
+```
+```{r tran2 sum}
+print("TRAN2 Summary")
+summary(trip_dat$TRAN2)
+```
+For mode 2, we see that more people are walking or biking and more people are taking transit (codes 40-53).
+
+<br>
+
+```{r transit mode plot 3}
+trip_dat %>% 
+    filter(TRAN3 < 60) %>% 
+ggplot( aes(x=TRAN3)) +
+    geom_histogram( binwidth=3, fill="#6496b4", color="#0059c7", alpha=0.9) +
+    ggtitle("TRAN 3 Mode Choice") +
+    theme_bw()
 ```
 
+```{r tran3 sum}
+print("TRAN3 Summary")
+summary(trip_dat$TRAN3)
+```
+And we see that the third mode is more variable.
 
+<br>
+
+Next, we pull out those that drove alone to work during their first work trip and narrow the data down to our key variables of interest.
 ```{r B.1 trip data cleaning}
 #grab anyone who drives alone to work on their first one-way work trip of the day
 trip_dat$drivealone[(trip_dat$TRAN1==21 | trip_dat$TRAN2==21 | 
@@ -647,8 +701,7 @@ CommuteTripsClean2$PARKC[which(is.na(CommuteTripsClean2$PARKC))]<-0
 CommuteTripsClean2 <- CommuteTripsClean2 %>% 
   filter(TRPDUR != 0)
 
-glimpse(CommuteTripsClean2)
-summary(CommuteTripsClean2)
+head(CommuteTripsClean2)
 ```
 
 ```{r merge CommuteTripsClean2 with per_hh_clean}
@@ -661,24 +714,19 @@ CommuteTripsPerson <- merge(CommuteTripsClean2,
                             all.y = FALSE, 
                             sort = FALSE)
 
-head(CommuteTripsPerson)
 hist(CommuteTripsPerson$drivealone)
 ```
+We see that many more people in this subset drove alone to work than walked or biked.
 
 <br>
 
 ## B.1B Variable Selection
 
->Develop the best (“leanest and meanest” and unbiased) binomial LOGIT model you
-can explaining whether a commuter drove to work or used another mode. Use any
-and all independent variables you think appropriate, including dummy variables.
-
->From megan: don't include variables that have a lot of zeros
-Ok to do drive alone instead of all driving. Just say how we define it
+Now, we select the variables we are most interested in testing with our models.
 
 The binomial Dependent Variable for our model is `drivealone`: Which is whether the person alone drove to work vs. got to work any other way.
 
-Independent variables of interest:
+Our independent variables of interest are:
 * `GEND`: Person X - Gender
 * `AGE`: Person X - Age 
 * `INCOM`: total 1999 annual household income 
@@ -688,30 +736,6 @@ Independent variables of interest:
 * `PARKC`: parking cost ($)
 * `PARKU`: parking cost unit (per hour, day, week, month, or other)
 * `TRNCT`: Cost of Using Transit (dollar figure)
-
-> Others to maybe add later from TRIP_PUB:
-SUBTR     Boarding Station
-ACCESS    Access to Boarding Station
-PAY1O     First Transit Payment - Other
-FARE1     Fare Amount 1 
-TRFR      Transfers
-PAY2      Second Transit Payment 
-PAY2O     Second Transit Payment - Other 
-FARE2     Fare Amount 2    
-PAY3      Third Transit Payment    
-PAY3O     Third Transit Payment - Other 
-FARE3     Fare Amount 3 
-EGRESS    Egress From Exit Station
-OEGRES    Other Egress 
-
-> Other to maybe add from per_hh_dat
-W1CPK     Cost to Park Vehicle at Work (dollar figure)  
-W1EPK     Employer Subsidize Parking 
-TRNST     Employer Subsidize Transit  
-VTRAN     Use Transit Subsidy
-TRNCT     Cost of Using Transit (dollar figure)
-WSTIM     Work Start Time
-WETIM     Work End Time 
 
 The values for `GEND`, `TOLL`, and `PARKU` are categorical, so we need to turn them into binary dummy variables to be able to use them in our models.
 
@@ -726,18 +750,12 @@ CommuteTripsPerson <- CommuteTripsPerson %>%
   mutate(PARKU_W = ifelse(PARKU == 3, 1, 0)) %>% #create binary for weekly parking
   mutate(PARKU_M = ifelse(PARKU == 4, 1, 0)) #create binary for monthly parking
 
-hist(CommuteTripsPerson$GEND)
-hist(CommuteTripsPerson$TOLL)
-hist(CommuteTripsPerson$PARKU)
-hist(CommuteTripsPerson$TRPDUR)
-
-glimpse(CommuteTripsPerson)
+head(CommuteTripsPerson)
 ```
 
+We then test our variables of interest for colinearity with the dependent variable (shown in descending order of cor. score).
 
-Test variables of interest for colinearity with dependent variable (shown in descending order of cor. score)
-
-```{r Correlations with dependent variable}
+```{r Correlations with dependent variable, echo=FALSE}
 print("Cost of Using Transit")
 cor(CommuteTripsPerson$drivealone, CommuteTripsPerson$TRNCT, use="complete.obs", method="pearson")
 print("Presence of Toll")
@@ -792,7 +810,7 @@ corrplot(cormatrix2, method = "circle", type = "lower", order = "hclust",
 
 This plot shows that the presence of a toll and toll amount exhibit correlation with each other, meaning that their inclusion in the model is mutually exclusive. Unsurprisingly, the same is true for male and female drivers. We pick the presence of a toll (`TOLL`) and female drivers (`GEND_F`) to include in our models, because they are more correlated with drive alone trips than their closely correlated pair.
 
-This yields our final list of independent variables to include in our models:
+This yields our final list of 11 independent variables to include in our models:
 * `GEND_F`: Female commuter
 * `AGE`: Age of commuter
 * `INCOM`: total 1999 annual household income 
@@ -809,9 +827,11 @@ This yields our final list of independent variables to include in our models:
 
 ## B.1C Develop Binomial Logit Model
 
-We develop a binomial logit model to XX.
+We develop a binomial logit model to to understand the factors that influence the binary outcome of whether or not someone drove alone to work and to make predictions about the probability of them doing so in the future based on our independent variables of interest.
 
-First, we create a baseline model, called `mod_A`, that includes all of our variables of interest.
+Crucially, we are trying to determine which of these indepdendent variables have the most predictive relevance.
+
+To do so, we first create a baseline model, called `mod_A`, that includes all of our variables of interest.
 
 ```{r B1 mod1}
 mod_A <- glm ( drivealone ~ AGE + GEND_F + TRPDUR + INCOM + TOLL + PARKC +
@@ -820,7 +840,9 @@ mod_A <- glm ( drivealone ~ AGE + GEND_F + TRPDUR + INCOM + TOLL + PARKC +
 print("mod_A")
 summary(mod_A)
 ```
-We see that many of the variables included in `mod_A` lack significance.
+We see that many of the variables included in `mod_A` lack significance but four of our predictor variables - `GEND_F`, `TRPDUR`, `INCOM`, `TRNCT` - appear to be significant predictors of driving alone to work.
+
+The AIC is 2585. The null deviance is high at 2817.8, indicating a poor fit. But the residual deviance is lower at 2561.0, which indicates that the model explains a significant amount of the variance in the response variable.
 
 Let's try to whittle these down with automated backwards selection using `drop1`.
 
@@ -829,16 +851,18 @@ Let's try to whittle these down with automated backwards selection using `drop1`
 #LRT shows the change in deviance, so a large LRT and small p-value means we should keep the variable in the model, and a small LRT and/or large p-value means cut it
 drop1(mod_A, test="Chisq")
 ```
-Running `drop1` gives us some useful information. We see that if we drop no variables from the model, the AIC is 2698.4. Furthermore, we want to keep variables in the model that have a large LRT (suggesting XX) and small p-value (suggesting statistical significance).
+Running `drop1` gives us some useful information. We see that the model with `GEND_F`, `TRPDUR`, `INCOM`, `TOLL`, and `TRNCT` as predictor variables are significant as they result in a significant increase in deviance and AIC values when dropped from the full model. 
 
-We run a new model with just `GEND_F`, `TRPDUR`, `INCOM`, `TOLL`, and `TRNCT` based on these results.
+Their large LRT and small p-value further indicate their significance.
+
+Therefore, we run a new model with just `GEND_F`, `TRPDUR`, `INCOM`, `TOLL`, and `TRNCT` based on these results.
 
 ```{r B1 mod2}
 mod_B <- glm ( drivealone ~  GEND_F + TRPDUR + INCOM + TOLL + TRNCT,
                data=CommuteTripsPerson, family = binomial)
 summary(mod_B)
 ```
-Interestingly, in this new model, all of the variables are significant except `TOLL` and we see that the AIC has increased slightly.
+Interestingly, in this new model, all of the variables are significant except `TOLL`. We also see that the AIC has increased by 38 and the residual deviance has increased by 50, indicating a slightly poorer fit.
 
 Let's see what happens if we run one more model without `TOLL`.
 
@@ -846,7 +870,14 @@ Let's see what happens if we run one more model without `TOLL`.
 mod_C <- glm ( drivealone ~ GEND_F + TRPDUR + INCOM + TRNCT, data=CommuteTripsPerson, family = binomial)
 summary(mod_C)
 ```
-In this third model, all of the variables are significant, but the AIC has increased slightly again.
+In this third model, all of the variables are significant, but the AIC has increased by 52 and the residual deviance increased by 54 from model 2, indicating a slightly worse fit.
+
+Check model fit with ANOVA
+
+```{r Check fit with ANOVA}
+anova(mod_A, mod_B, mod_C, test="Chisq")
+```
+Our third model gives the largest decrease in deviance, suggesting it is not only our leanest, but also our meanest model.
 
 <br>
 
@@ -868,13 +899,6 @@ CommuteTripsPerson$binary <- predC$binary
   nrow(CommuteTripsPerson)
 ```
 Calculating our model's prediction accuracy gives us an accuracy rate of 86% - pretty good!
-
-Check model fit with ANOVA
-
-```{r Check fit with ANOVA}
-anova(mod_A, mod_B, mod_C, test="Chisq")
-```
-Our third model gives the largest decrease in deviance, suggesting it is not only our leanest, but also our meanest model.
 
 **Interpret coefficients**
 ```{r interpret coeficient mod_C}
