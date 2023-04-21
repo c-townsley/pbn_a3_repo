@@ -1271,6 +1271,19 @@ you can explaining whether a traveler drove to work, carpooled, took public tran
 or walked or biked. Use any and all independent variables you think appropriate,
 including dummy variables.
 
+## Data Exploration and Processing
+
+```{r MNL Setup}
+rm(list=ls())
+
+per_dat <- read_csv("https://raw.githubusercontent.com/c-townsley/pbn_a3_repo/main/Data/HH%20Travel%20Survey/per_pub.csv")
+
+trip_dat <- read_csv("https://raw.githubusercontent.com/c-townsley/pbn_a3_repo/main/Data/HH%20Travel%20Survey/trip_pub.csv")
+
+hh_dat <- read_csv("https://raw.githubusercontent.com/c-townsley/pbn_a3_repo/main/Data/HH%20Travel%20Survey/hh_pub_CSV.csv", col_names = TRUE)
+```
+
+
 ```{r MNL bucket creation}
 #let's grab anyone who has one of four modes in their sequence: 
 #walked or bike/non-motorized
@@ -1280,7 +1293,7 @@ including dummy variables.
 
 #bike/non-motorized
 trip_dat <- trip_dat %>% 
-  mutate(walkbike = case_when(
+  mutate(nonmoto = case_when(
     TRAN1==11 ~ 1,
     TRAN1==12 ~ 1,
     TRAN1==14 ~ 1,
@@ -1300,7 +1313,7 @@ trip_dat <- trip_dat %>%
     TRUE ~ 0
   ))
 
-trip_dat$walkbike[which(is.na(trip_dat$walkbike))] <-0 #Remove NAs
+trip_dat$nonmoto[which(is.na(trip_dat$nonmoto))] <-0 #Remove NAs
 
 #drive alone
 trip_dat <- trip_dat %>% 
@@ -1366,15 +1379,15 @@ trip_dat$transit[which(is.na(trip_dat$transit))] <-0 #Remove NAs
 
 ## if both are true, let's give it to transit, makes the most sense 
 trip_dat$drivealone[trip_dat$transit==1 & trip_dat$drivealone==1]<-0
-trip_dat$walkbike[trip_dat$transit==1 & trip_dat$walkbike==1]<-0
+trip_dat$nonmoto[trip_dat$transit==1 & trip_dat$nonmoto==1]<-0
 trip_dat$carpool[trip_dat$transit==1 & trip_dat$carpool==1]<-0
 
 # and if carpool and drive alone conflict, give it to carpool (same for walk/bike and carpool)
 trip_dat$drivealone[trip_dat$carpool==1 & trip_dat$drivealone==1]<-0
-trip_dat$walkbike[trip_dat$carpool==1 & trip_dat$walkbike==1]<-0
+trip_dat$nonmoto[trip_dat$carpool==1 & trip_dat$nonmoto==1]<-0
 
 #if walkbike and drive alone conflict, give it to drive alone
-trip_dat$walkbike[trip_dat$drivealone==1 & trip_dat$walkbike==1]<-0
+trip_dat$nonmoto[trip_dat$drivealone==1 & trip_dat$nonmoto==1]<-0
 ```
 
 ```{r MNL cleaning and processing}
@@ -1383,12 +1396,12 @@ trip_dat$drivealone[which(is.na(trip_dat$drivealone))]<-0
 
 trip_dat$carpool[which(is.na(trip_dat$carpool))]<-0
 
-trip_dat$walkbike[which(is.na(trip_dat$walkbike))]<-0
+trip_dat$nonmoto[which(is.na(trip_dat$nonmoto))]<-0
 
 trip_dat$transit[which(is.na(trip_dat$transit))]<-0
 
 ##clean out any rows where they are all zero 
-trip_dat$SUMZERO <- trip_dat$transit + trip_dat$walkbike + trip_dat$drivealone + trip_dat$carpool
+trip_dat$SUMZERO <- trip_dat$transit + trip_dat$nonmoto + trip_dat$drivealone + trip_dat$carpool
 table(trip_dat$SUMZERO)
 
 trip_dat <- trip_dat[-which(trip_dat$SUMZERO == 0), ] 
@@ -1400,7 +1413,7 @@ head(CommuteTripsClean)
 #combine modes into a single column so that we can plot
 CommuteTripsClean$Commute[CommuteTripsClean$drivealone == 1] <- 1
 CommuteTripsClean$Commute[CommuteTripsClean$carpool == 1] <- 2
-CommuteTripsClean$Commute[CommuteTripsClean$walkbike == 1] <- 3
+CommuteTripsClean$Commute[CommuteTripsClean$nonmoto == 1] <- 3
 CommuteTripsClean$Commute[CommuteTripsClean$transit == 1] <- 4
 
 #are there NAs?
@@ -1450,20 +1463,118 @@ CommuteTripsPerson$check <-
   CommuteTripsPerson$transit +
   CommuteTripsPerson$drivealone + 
   CommuteTripsPerson$carpool + 
-  CommuteTripsPerson$walkbike
+  CommuteTripsPerson$nonmoto
 max(CommuteTripsPerson$check)
 ```
+## Variable Selection
 
 ```{r MNL Variable Selection}
 #keep only useful variables
 CommuteTripsPerson <- CommuteTripsPerson %>% 
-  dplyr::select(SAMPN.x, PERNO.x, AGE, GEND, INCOME, SAMPN_PER, TOLLA, TOLL, PARKC, PARKU, PRKUO, TRPDUR, drivealone, walkbike, transit, carpool, Commute)
+  dplyr::select(SAMPN.x, PERNO.x, AGE, GEND, INCOME, SAMPN_PER, TOLLA, TOLL, PARKC, PARKU, PRKUO, TRPDUR, drivealone, nonmoto, transit, carpool, Commute)
 
 #getting rid of NAs in income
 CommuteTripsPerson<-CommuteTripsPerson[-which(is.na(CommuteTripsPerson$INCOME)),]
 head(CommuteTripsPerson)
 ```
+```{r distance calcs}
+#we don't know the alternatives price and time 
+#let's just look at time. 
+#let's assume the following speeds: 
+##this isn't great b/c it's really non-linear
+#auto: 30mph 
+#biking/non-mot: 12mph 
+#transit: 25mph
 
+#let's do the calculation for each mode separately
+#here I'm splitting the data set into three based on mode choice
+NonMoto<-CommuteTripsPerson[which(CommuteTripsPerson$nonmoto ==1),]
+Drivealone<-CommuteTripsPerson[which(CommuteTripsPerson$drivealone ==1),]
+Carpool<-CommuteTripsPerson[which(CommuteTripsPerson$carpool ==1),]
+Transit<-CommuteTripsPerson[which(CommuteTripsPerson$transit ==1),]
+
+#double check and see if each data set indeed only has information for one mode
+table(NonMoto$Commute)
+table(Drivealone$Commute)
+table(Carpool$Commute)
+table(Transit$Commute)
+
+#take a look at trip duration.
+#it is likely in minutes
+summary(NonMoto$TRPDUR)
+summary(Drivealone$TRPDUR) #someone drove 8 hours to work! Alone!
+summary(Carpool$TRPDUR)
+summary(Transit$TRPDUR)
+
+#distance = speed * time in minutes
+Drivealone$distance<-(30/60)*Drivealone$TRPDUR
+head(Drivealone)
+Carpool$distance<-(30/60)*Carpool$TRPDUR
+head(Carpool)
+NonMoto$distance<-(12/60)*NonMoto$TRPDUR
+head(NonMoto)
+Transit$distance<-(25/60)*Transit$TRPDUR
+head(Transit)
+
+#re-combine the three data sets 
+dat <- rbind(NonMoto, Transit, Drivealone, Carpool)
+head(dat)
+
+#and remove some outliers
+dat <-dat[which(dat$AGE %in% 1:110),]
+
+#now we can calc a trip duration on every mode
+#in other words, this is what the trip duration WOULD be if the person had chosen each mode
+dat$time.auto <- dat$distance/30
+dat$time.carpool <-dat$distance/30
+dat$time.nonmoto <- dat$distance/12
+dat$time.transit <- dat$distance/25
+
+head(dat)
+
+#add a variable to enable us to recast the data later on
+dat$mode[dat$nonmoto == 1] <- "nonmoto"
+dat$mode[dat$transit == 1] <- "transit"
+dat$mode[dat$drivealone == 1] <- "drive"
+dat$mode[dat$carpool == 1] <- "carpool"
+head(dat)
+
+#the row indices are messed up because of the subsets we did
+#need to fix them
+rownames(dat) <- NULL 
+head(dat)
+
+varsInterest <- c("AGE", "GEND", "INCOME", "time.auto", "time.carpool", "time.nonmoto", "time.transit", "mode")
+dat<-dat[ , which(names(dat) %in% varsInterest)]
+head(dat)
+
+#dat <- dat %>% 
+  #select(AGE, GEND, INCOME, time.auto, time.carpool, time.nonmoto, time.transit, mode)
+#head(dat)
+```
+
+## Build Models
+
+```{r MNL Model Setup}
+require(mlogit)
+require(dfidx )
+
+head(dat)
+datMNL <- mlogit.data(dat, shape="wide", choice="mode", varying=c(4:7))
+
+datMNL <- dfidx(dat, shape="wide", choice="mode", varying= 4:7, idnames = c("chid", "alt"))
+
+#check it! 
+head(datMNL, 20)
+
+summary(datMNL)
+
+```
+
+```{r MNL Intercept Only}
+mod.int <- mlogit (mode ~ 1, data = datMNL)
+summary(mod.int)
+```
 
 >Summarize your model results in a few paragraphs. Include a few plots or tables
 that show the probabilities of each choice versus changes in key variables in your
