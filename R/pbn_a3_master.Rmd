@@ -951,21 +951,15 @@ ggplot(pred_dat_wd, aes(x = TRPDUR, y = value, colour = Scenario)) +
   theme_bw()
 ```
 
->Summarize your model results in a paragraph.
+<br>
 
-Helpful: `GEND_F`, `TRPDUR`, `INCOM`, `TRNCT`
+In summary, these models suggest that the gender of a driver, the duration of their trip, their income, and the cost of using transit are the most important predictors of whether they will drive alone to work. These findings seem reasonable. In the U.S., women still share an unequal burden of childcare compared to men. Additionally, the gender pay gap could be a factor, since income appears to be a significant predictor of driving alone as well. It is intuitive that a longer trip could also encourage car-pooling or other modes, as it changes the cost-benefit ratio of driving alone or driving all together.
 
-A little helpful: `PARKC`, `PARKU_H`, `PARKU_D`, `PARKU_W`, and `PARKU_M`
+Our finding that higher transit cost decreases the odds ratio that a person will drive alone to work was surprising however. Intuitively, it would seem that cheap transit would increase the attractiveness of this mode. This finding suggests that future study of the variables and their interactions is necessary.
 
-Really not helpful:`AGE`, `TOLL`, 
+We found that the cost of parking, and whether commuters pay hourly, daily, weekly, or monthly are of secondary importance. It is not surprising that these supply-side factors had a secondary effect on the attractiveness of driving. In our correlation tests, it was interesting, to see that daily parking had a higher and positive correlation with driving alone than the other parking cost units (hourly, weekly, or monthly). This could be because daily parkers have more erratic commuting patterns than other commuters and therefore are more likely to drive alone when they do drive.
 
-
-In summary, these models suggest that the gender of a driver, the duration of their trip, their income, and the cost of using transit are the most important predictors of whether they will drive alone to work. These findings seem reasonable. In the U.S., women still share an unequal burden of childcare compared to men. Additionally, the gender pay gap could be a factor, since income appears to be a significant predictor of driving alone as well.
-
-The cost of parking, and whether they pay hourly, daily, weekly, or monthly are of secondary importance. It is not surprising that these supply-side factors 
-
-Finally, these models suggest that the age of a drive and the presence of a toll are of relatively little significance to whether or not they will drive alone.
-
+Finally, these models suggest that the age of a driver and the presence of a toll are of relatively little significance to whether or not they will drive alone. The age finding is surprising, as social patterns and tendencies change with age. Therefore, this suggests these models and variables would benefit from more lengthy development. Presence of a toll could not be significant simply because so many highways are toll roads in this region.
 
 <br>
 
