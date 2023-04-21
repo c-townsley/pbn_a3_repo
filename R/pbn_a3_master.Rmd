@@ -542,7 +542,7 @@ ggplot(dat, aes(x = SLOPE, y = value, colour = Scenario)) +
 
 <br>
 
-# Part B
+# Part B: 
 >Charlie
 >How do a person’s household, demographic, and trip characteristics
 affect their choice of transportation mode to work? To answer this
