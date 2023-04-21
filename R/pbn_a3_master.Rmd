@@ -29,15 +29,9 @@ palette <- c("#a02300", "#0059c7", "#6496b4", "#E1B93C")
 
 
 # Part A
->Oliver
 
->The dataset, Chester Urban Growth
-(‘Chester_Urban_Growth.csv’ in ‘Datasets’ folder on Canvas. For metadata on this csv, see
-the .xlsx file) includes selected GIS-derived land cover, land use, transportation facility, and
-demographic data for Chester County, PA for 1992 and 2001. Each row in the dataset
-corresponds to a 500-meter raster cell location.
 
-```{r part A packages and data, warning = FALSE, message = FALSE}
+```{r load packages and data, warning = FALSE, message = FALSE}
 #run every session
 library(tidyverse)
 library(dplyr)
@@ -51,14 +45,12 @@ library(magrittr)
 library(raster)
 library(sp)
 library(mlogit)
-
-Dat_A <- read_csv("https://raw.githubusercontent.com/c-townsley/pbn_a3_repo/main/Data/Chester_Urban_Growth.csv")
 ```
 
-<br>
-
-## A.1
->Read the data into R. Run descriptive statistics as necessary.
+## A.1 Read the data into R. Run descriptive statistics as necessary.
+```{r, warning = FALSE, message = FALSE}
+Dat_A <- read_csv("https://raw.githubusercontent.com/c-townsley/pbn_a3_repo/main/Data/Chester_Urban_Growth.csv")
+```
 
 ```{r summarize data, warning = FALSE, message = FALSE}
 summary(Dat_A)
@@ -66,7 +58,7 @@ summary(Dat_A)
 
 <br>
 
-## A.2
+## A.2 Create New Variable for Urban Land Conversion
 >Create a new binary (0/1) variable, [CHNG_URB] indicating those raster cells that were
 either farmland or pasture land or forest in 1992, and which converted to urban uses by
 2001. Indicate these cells with a 1. All other cells should be coded to 0.
@@ -78,13 +70,14 @@ Dat_A <- Dat_A %>%
 ```
 <br>
 
-## A.3
+## A.3 Build a binomial logit model to identify drivers of urban land conversion
 >Build a best “lean & mean” binomial logit model that identifies the determinants of
 agricultural/pasture/forest land-to-urban land use change between 1992 and 2001 (This
 is the 0/1 variable created in step 2). Use whatever independent variables you think
 appropriate, and be sure to explain your logic and model development steps.
 
-```{r Correlations with Land Use Change}
+Test correlations with CHNG_URB
+```{r Correlations with Urban Land Use Change}
 print("SLOPE")
 cor(Dat_A$CHNG_URB, Dat_A$SLOPE, use="complete.obs", method="pearson")
 print("FOURLNE300")
@@ -622,7 +615,7 @@ hist(trip_dat$TRAN3)
 ```
 
 
-```{r trip data cleaning}
+```{r B.1 trip data cleaning}
 #grab anyone who drives alone to work on their first one-way work trip of the day
 trip_dat$drivealone[(trip_dat$TRAN1==21 | trip_dat$TRAN2==21 | 
                        trip_dat$TRAN3==21| trip_dat$TRAN4==21)] <-1
@@ -774,7 +767,7 @@ cor(CommuteTripsPerson$drivealone, CommuteTripsPerson$PARKU_W, use="complete.obs
 ```
 Let's test these variables for colinearity with the dependent variable and each other using a correlation  plot.
 
-```{r correlation matrix 2, fig.width=7, fig.height=5, fig.width=8}
+```{r B1 correlation matrix, fig.width=7, fig.height=5, fig.width=8}
 #make matrix of variables we're testing
 mod_A_vars <- CommuteTripsPerson %>% 
   dplyr::select(drivealone, TOLL, TOLLA, TRPDUR, INCOM, GEND_F, GEND_M, AGE, PARKC, PARKU_H, PARKU_D, PARKU_W, PARKU_M, TRNCT)
@@ -861,7 +854,7 @@ In this third model, all of the variables are significant, but the AIC has incre
 
 **Prediction Accuracy**
 
-```{r prediction accuracy}
+```{r B1 prediction accuracy}
 predC <- as.data.frame(fitted(mod_C))
 predC <- rename(predC, "prob" = "fitted(mod_C)")
 predC <- mutate(predC, "binary" = ifelse(prob < 0.5, 0, 1)) #if predicted probabilities are <0.5, then classify as zero, otherwise classify as 1
@@ -878,7 +871,7 @@ Calculating our model's prediction accuracy gives us an accuracy rate of 86% - p
 
 Check model fit with ANOVA
 
-```{r Check fit wANOVA}
+```{r Check fit with ANOVA}
 anova(mod_A, mod_B, mod_C, test="Chisq")
 ```
 Our third model gives the largest decrease in deviance, suggesting it is not only our leanest, but also our meanest model.
@@ -947,7 +940,7 @@ you think appropriate, including dummy variables.
 
 ## B.2A Data Exploration and Processing
 
-```{r trip data cleaning}
+```{r B.2 trip data cleaning}
 #grab anyone who walked or biked to work on their first one-way work trip of the day
 trip_dat$walkbike[(trip_dat$TRAN1==11 | trip_dat$TRAN2==11 | 
                        trip_dat$TRAN3==11| trip_dat$TRAN4==11 |
@@ -998,7 +991,7 @@ The binomial Dependent Variable for our model is `walkbike`: Which is whether th
 
 The values for `GEND`, `TOLL`, and `PARKU` are categorical, so we need to turn them into binary dummy variables to be able to use them in our models.
 
-```{r B1 Dummy Vars}
+```{r B2 Dummy Vars}
 #Create dummy variables from GEND, TOLL, and PARKU
 CommuteTrips_walkbike <- CommuteTrips_walkbike %>% 
   mutate(GEND_M = ifelse(GEND == 1, 1, 0)) %>% #create binary for male drivers
@@ -1159,7 +1152,7 @@ Therefore, we select our third model as our final model, instead of our fourth.
 
 **Prediction Accuracy**
 
-```{r prediction accuracy}
+```{r B2 prediction accuracy}
 predW <- as.data.frame(fitted(mod_Cc))
 predW <- rename(predW, "prob" = "fitted(mod_Cc)")
 predW <- mutate(predW, "binary" = ifelse(prob < 0.5, 0, 1)) #if predicted probabilities are <0.5, then classify as zero, otherwise classify as 1
@@ -1333,7 +1326,7 @@ trip_dat$carpool[trip_dat$carpool==1 & trip_dat$transit==1]<-0
 ```
 
 
-```{r MNL bucket creation}
+```{r transit data cleaning}
 #clean and convert NAs to zero
 trip_dat$drivealone[which(is.na(trip_dat$drivealone))]<-0
 trip_dat$bike[which(is.na(trip_dat$bike))]<-0
@@ -1465,7 +1458,7 @@ head(dat)
 ```
 
 ## Subset Data for modeling
-```{r MNL bucket creation}
+```{r subset data for modeling}
 varsInterest <- c("AGE", "GENDER", "INCOME", "time.auto", "time.bike", "time.transit", "time.carpool", "mode")
 dat<-dat[ , which(names(dat) %in% varsInterest)]
 head(dat)
@@ -1543,11 +1536,10 @@ AIC(mod.int, mod, mod1)
 #interpretation for coefficients
 summary(mod1)
 
-
 library(stargazer)
 stargazer(mod.int, mod, mod1, type = "text")
 ```
-
+From this, it looks like mod1 is our best model
 
 
 >Summarize your model results in a few paragraphs. Include a few plots or tables
