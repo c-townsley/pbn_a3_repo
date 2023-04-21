@@ -475,16 +475,10 @@ ideas for improving the performance of your model?
 
 Out of the 23 variables in this dataset, Model 7 uses only four variables to model land use change in Chester County from 1992-2001 with 65% accuracy. According to this model, the four most important factors in explaining land use change are Slope, Land within 300 meters of SEPTA regional rail lines, Distance to Interstate, and distance to parks.
 
-
+Interpreting the results of the coefficients:
 The estimate for the SLOPE variable is -0.3121, which means that for every one-unit increase in slope (percent), the log-odds of a pixel changing to urban (i.e., CHNG_URB being 1) between 1992 and 2001 decreases by 0.3121, holding other variables constant.
 
-To make this more interpretable, we can convert the log-odds to odds by taking the exponent of the coefficient: exp(-0.3121) ≈ 0.732
-
-This means that for every one-unit increase in slope, the odds of a pixel changing to urban between 1992 and 2001 are approximately 73.2% of the odds for the previous slope value, keeping all other predictors constant in the model.
-
-Put another way, all else equal, the odds of a given pixel changing to urban decrease by 26.8% for every 1% increase in slope.
-
-The simplest interpretation of this coefficient is that an increase in slope is associated with a decreased likelihood of a pixel becoming urban.
+To make this more interpretable, we can convert the log-odds to odds by taking the exponent of the coefficient: exp(-0.3121) ≈ 0.732. This means that for every one-unit increase in slope, the odds of a pixel changing to urban between 1992 and 2001 are approximately 73.2% of the odds for the previous slope value, keeping all other predictors constant in the model. Put another way, all else equal, the odds of a given pixel changing to urban decrease by 26.8% for every 1% increase in slope. The simplest interpretation of this coefficient is that an increase in slope is associated with a decreased likelihood of a pixel becoming urban.
 
 For the rest of the values, let's keep it simple:
 
@@ -546,9 +540,6 @@ ggplot(dat, aes(x = SLOPE, y = value, colour = Scenario)) +
         xlab("Slope") + ylab("Predicted Probability of Urban Land Use Conversion")
 ```
 
-
-
-<br>
 <br>
 
 # Part B
@@ -1266,7 +1257,6 @@ or walked or biked. Use any and all independent variables you think appropriate,
 including dummy variables.
 
 ## Data Exploration and Processing
-
 ```{r MNL Setup}
 rm(list=ls())
 
@@ -1277,7 +1267,7 @@ trip_dat <- read_csv("https://raw.githubusercontent.com/c-townsley/pbn_a3_repo/m
 hh_dat <- read_csv("https://raw.githubusercontent.com/c-townsley/pbn_a3_repo/main/Data/HH%20Travel%20Survey/hh_pub_CSV.csv", col_names = TRUE)
 ```
 
-
+##Add columns for bike, carpool, transit, or drive alone trips
 ```{r MNL bucket creation}
 #drove to work (21), carpooled (22, 31), took public transit (see below), or walked, wheelchair, biked (11, 12, 14) 
 
@@ -1325,7 +1315,7 @@ trip_dat$drivealone[trip_dat$carpool==1 & trip_dat$drivealone==1]<-0
 trip_dat$carpool[trip_dat$carpool==1 & trip_dat$transit==1]<-0
 ```
 
-
+Clean data
 ```{r transit data cleaning}
 #clean and convert NAs to zero
 trip_dat$drivealone[which(is.na(trip_dat$drivealone))]<-0
@@ -1355,9 +1345,8 @@ table(CommuteTripsClean$Commute)
 #plot frequency of each mode chosen
 hist(CommuteTripsClean$Commute)
 ```
-
-
-```{r}
+Clean Data More
+```{r clean data part 2}
 #let's merge in on person number and SAMPN
 #we have to merge together the SAMPN and the person number
 #there is already a column called X that represents SAMPN + PERNO but this is how you would create it
@@ -1409,8 +1398,10 @@ head(CommuteTripsPerson)
 #getting rid of NAs in income
 CommuteTripsPerson<-CommuteTripsPerson[-which(is.na(CommuteTripsPerson$INCOME)),]
 head(CommuteTripsPerson)
-##how does this differ from the sample datasets we've worked with
+```
 
+Split Data to calculate trip duration and then rejoin data.
+```{r}
 #let's do the time calculation for each mode separately
 #here I'm splitting the data set into three based on mode choice
 Biking<-CommuteTripsPerson[which(CommuteTripsPerson$bike ==1),]
@@ -1454,9 +1445,9 @@ head(dat)
 #need to fix them
 rownames(dat) <- NULL 
 head(dat)
-
 ```
 
+#Model Building
 ## Subset Data for modeling
 ```{r subset data for modeling}
 varsInterest <- c("AGE", "GENDER", "INCOME", "time.auto", "time.bike", "time.transit", "time.carpool", "mode")
@@ -1493,7 +1484,7 @@ mod1 <- mlogit (mode ~ 1 | AGE + INCOME, data = datMNL)
 summary(mod1)
 
 #both alternative and individual specific
-mod1 <- mlogit (mode ~ time | AGE + INCOME, data = datMNL)
+mod1 <- mlogit (mode ~ time | INCOME, data = datMNL)
 summary(mod1)
 ```
 
@@ -1512,8 +1503,7 @@ summary(mod.int)
 
 #think back to chisq test we did for binomial
 modelChi <- (-2*(-1104.5)) - (-2*(-1007)) 
-#-1007 = log likelihood for mod 
-#-1104.5 = log likelihood for mod.int
+
 #this is the chisq in output
 summary(mod)
 
@@ -1539,16 +1529,61 @@ summary(mod1)
 library(stargazer)
 stargazer(mod.int, mod, mod1, type = "text")
 ```
-From this, it looks like mod1 is our best model
+From this, it looks like mod1 is our best model since it has the lowest AIC. But what do the results of our model mean?
+
+Visualize the probabilities of each choice
+```{r predict probs}
+# Create a data frame with a range of time and income values to predict probabilities
+new_data <- expand.grid(
+  time = seq(min(datMNL$time), max(datMNL$time), length.out = 100),
+  INCOME = c(min(datMNL$INCOME), median(datMNL$INCOME), max(datMNL$INCOME))
+)
+
+# Calculate the predicted probabilities for each transportation choice
+predicted_probs <- as.data.frame(predict(mod1, newdata = new_data, type = "prob"))
+
+# Join the predicted probabilities to the new_data data frame
+new_data <- cbind(new_data, predicted_probs)
+
+```
+
+This plot shows our model's prediction of the impact of time on mode choice for different income levels
+```{r visualize probabilities}
+new_data_long <- new_data %>%
+  gather(key = "mode", value = "probability", -time, -INCOME)
+
+ggplot(new_data_long, aes(x = time, y = probability, color = mode)) +
+  geom_line() +
+  facet_wrap(~ INCOME, labeller = label_both) +
+  labs(x = "Time", y = "Probability", title = "Probabilities of Transportation Choices vs. Time") +
+  theme_minimal()
+
+```
+
+This plot shows our model's prediction of the impact of income on mode choice for trips below and above the median duration
+```{r Transportation Mode vs Income}
+# Subset the data for a few specific time values
+time_subset <- c(min(datMNL$time), median(datMNL$time), max(datMNL$time))
+new_data_income_subset <- new_data_long %>% filter(time %in% time_subset)
+
+# Create the plot
+ggplot(new_data_income_subset, aes(x = INCOME, y = probability, color = mode)) +
+  geom_line() +
+  facet_wrap(~ time, labeller = label_both) +
+  labs(x = "Income", y = "Probability", title = "Probabilities of Transportation Choices vs. Income") +
+  theme_minimal()
+```
 
 
->Summarize your model results in a few paragraphs. Include a few plots or tables
-that show the probabilities of each choice versus changes in key variables in your
-model.
+This model shows that as time increases, the likelihood of choosing any alternative mode of transportation decreases, with all three alternatives to driving alone (bike, carpool, and transit) having statistically significant negative coefficients. The effect of income on transportation choice is also statistically significant for carpool and transit, but not for bike. This indicates that as income increases, individuals are less likely to choose carpool or transit over driving alone, but that income has no significant impact on whether or not a given individual will bike.
 
->How well does your model predict observed mode choices? For which modes
-does it perform best? Worst? How do you know?
+(Intercept):bike, (Intercept):carpool, and (Intercept):transit: These coefficients represent the baseline log-odds of choosing each alternative mode over auto, keeping the other predictors constant. All three intercepts are negative and statistically significant, indicating that the odds of choosing bike, carpool, or transit are lower than auto when time and income are held constant.
 
->What ideas do you have for additional variables (that are not available in the
-data) that might make for better models?
+This model has relatively low fit, suggested by its McFadden R^2 of 0.075449. Human behavior is shaped by a large number of factors, not all of which can be captured in a survey such as the one used to generate this dataset. Some additional factors to gather data on would be environmental factors such as distance to public transit and population density and personal factors such as an individual's perceived safety of modes.
+
+The chi-square value is 251.8, with a p-value < 2.22e-16, suggesting that the model's predictors (time and income) significantly improve the model's fit compared to an intercept-only model. The model's base category is "auto," and it has the highest frequency (0.863068). This indicates that the model would perform best in predicting the "auto" mode choice, as it's the most common choice in the dataset. For the opposite reasons, this model performs worst for biking, which is the least common choice in the dataset.
+
+
+
+
 
