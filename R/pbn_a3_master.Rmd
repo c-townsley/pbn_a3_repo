@@ -863,16 +863,26 @@ summary(mod_C)
 ```
 In this third model, all of the variables are significant, but the AIC has increased by 52 and the residual deviance increased by 54 from model 2, indicating a slightly worse fit.
 
-Check model fit with ANOVA
+## B1.D Model Selection
+
+To determine which model to select as our final model, we compare the fit of the three models with ANOVA.
 
 ```{r Check fit with ANOVA}
 anova(mod_A, mod_B, mod_C, test="Chisq")
 ```
-Our third model gives the largest decrease in deviance, suggesting it is not only our leanest, but also our meanest model.
+
+The Analysis of Deviance table from ANOVA allows us to compare the fit of the three models against each other. The p-values indicate that both Model 2 and 3 are significantly better fits than Model 1, with Model 3 being the best fit since it gives the largest decrease in deviance. 
+
+Because this model achieved this by removing the `PARKC`, `PARKU_H`, `PARKU_D`, `PARKU_W`, and `PARKU_M` variables, it is both our leanest, and meanest model.
+
+```{r stargazer, results='asis'}
+stargazer(mod_A, mod_B, mod_C, type="html", digits = 2, single.row = FALSE)
+```
+Comparing the models with a stargazer table helps us see that the AIC increase of 90 is comparitively slight, and worth the trade off of a model that has solely significant variables.
 
 <br>
 
-## B.1D Interpret Model Results
+## B.1E Interpret Final Model Results
 
 **Prediction Accuracy**
 
@@ -904,9 +914,9 @@ The coefficients of our model suggest that:
 * The odds ratio of a person driving alone to work is 40.4% *lower* if they are female.  
 * a unit increase in trip duration *decreases* the odds ratio of someone driving alone to work by 0.6%.  
 * a unit increase in income *increases* the odds ratio of a person driving alone to work by 5.5%.  
-* And a unit increase in transit cost decreases the odds ratio of a person driving alone to work by 1.6%.  
+* And a unit increase in transit cost *decreases* the odds ratio of a person driving alone to work by 1.6%.  
 
-The charts below show that these patterns hold true across the other variables.
+The chart below shows that even as trip duration increases, the odds ratio of a person driving alone to work continues to be lower if they are female.
 
 
 ```{r mod plots}
@@ -943,7 +953,18 @@ ggplot(pred_dat_wd, aes(x = TRPDUR, y = value, colour = Scenario)) +
 
 >Summarize your model results in a paragraph.
 
-In summary, the model suggests XX.
+Helpful: `GEND_F`, `TRPDUR`, `INCOM`, `TRNCT`
+
+A little helpful: `PARKC`, `PARKU_H`, `PARKU_D`, `PARKU_W`, and `PARKU_M`
+
+Really not helpful:`AGE`, `TOLL`, 
+
+
+In summary, these models suggest that the gender of a driver, the duration of their trip, their income, and the cost of using transit are the most important predictors of whether they will drive alone to work. These findings seem reasonable. In the U.S., women still share an unequal burden of childcare compared to men. Additionally, the gender pay gap could be a factor, since income appears to be a significant predictor of driving alone as well.
+
+The cost of parking, and whether they pay hourly, daily, weekly, or monthly are of secondary importance. It is not surprising that these supply-side factors 
+
+Finally, these models suggest that the age of a drive and the presence of a toll are of relatively little significance to whether or not they will drive alone.
 
 
 <br>
@@ -1208,6 +1229,8 @@ And we see that our final model's deviance is smaller than the null deviance, so
 #percent change in the odds ratio 
 100 * (exp(coef(mod_Cc))-1)
 ```
+
+
 The coefficients of our model suggest that:
 * A unit increase in a person's age *decreases* the odds ratio that they will walk or bike to work by 1.6%.
 * A unit increase in trip duration also *decreases* the odds ratio of a person walking or biking to work by 1.6%.  
@@ -1257,16 +1280,11 @@ ggplot(pred_dat_wd2, aes(x = INCOM, y = value, colour = Scenario)) +
   theme_bw()
 ```
 
->Summarize your model results in a few paragraphs. Include a few plots or tables
-that show the probabilities of each choice versus changes in key variables in your
-model.
 
 >How does this model compare to the results of the models from question B1?
 Venture some reasons for the differences.
 
 When we compare factors related to people driving alone to work from part B1 and factors related to people walking or biking to work (part B2), we observe a couple of key differences. First, gender appears to be a significant factor related to driving alone, but an insignificant one when when it comes to the decision to walk or bike to work. Additionally, paying for parking by day and the cost of parking a vehicle at work both appear to be significantly related to the probability of someone walking or biking to work, but not significantly related to the probability of them driving alone.
-
-Possible explanations for why women are less likely to drive alone to work than men are the larger burden of childcare that women still carry in the U.S. Additionally, our models suggest that higher income is also correlated with driving alone so the gender pay gap could also be a factor.
 
 The cost of parking at work and the parking cost unit could be associated with increased probability of walking or cycling to work because they act as deterrents. Higher cost of parking at work could decrease the perceived hardship of walking or cycling. Paying for parking by day is a surprising variable to see in this list. It could be that paying for parking more frequently creates more opportunities for a commuter to re-evaluate their mode choice.
 
