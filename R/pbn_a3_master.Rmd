@@ -50,6 +50,7 @@ library(broom)
 library(magrittr)
 library(raster)
 library(sp)
+library(mlogit)
 
 Dat_A <- read_csv("https://raw.githubusercontent.com/c-townsley/pbn_a3_repo/main/Data/Chester_Urban_Growth.csv")
 ```
@@ -156,7 +157,7 @@ The variables in order of correlation with CHNG_URB are as follows:
 "WATER100" -0.01852956
 "PAL_WETLND" -0.007407224
 
-Let's test the top 10 variables mos correlated with CHNG_URB for colinearity using a cor plot.
+Let's test the top 10 variables most correlated with CHNG_URB for colinearity using a cor plot.
 ```{r correlation matrix, fig.width=7, fig.height=5, fig.width=8}
 #make matrix of variables we're testing
 mod_vars <- Dat_A %>% 
@@ -285,6 +286,7 @@ Dat_C_Test  <- Dat_C[-trainIndex2,]
 ML_Model2 <- glm(CHNG_URB ~ ., family="binomial"(link="logit"), data = Dat_C_Train)
 summary(ML_Model2)
 ```
+
 The AIC increased on Model2 relative to Model1...
 
 Train a third model, removing variables with poor performance indicated by high p-values, along with the intercept.
@@ -563,6 +565,7 @@ affect their choice of transportation mode to work? To answer this
 question, we will use data from the DVRPC HHTS.
 
 ```{r part B data, warning = FALSE, message = FALSE}
+rm(list=ls())
 
 per_dat <- read_csv("https://raw.githubusercontent.com/c-townsley/pbn_a3_repo/main/Data/HH%20Travel%20Survey/per_pub.csv")
 
@@ -605,6 +608,7 @@ per_hh_clean$SAMPN_PER <- paste0(per_hh_clean$SAMPN, per_hh_clean$PERNO)
 
 #remove NAs
 per_hh_clean$INCOM[which(is.na(per_hh_clean$INCOM))]<-0
+per_hh_clean$TRNCT[which(is.na(per_hh_clean$TRNCT))] <- 0
 
 summary(per_hh_clean)
 glimpse(per_hh_clean)
@@ -663,6 +667,9 @@ CommuteTripsPerson <- merge(CommuteTripsClean2,
                             all.x = TRUE, 
                             all.y = FALSE, 
                             sort = FALSE)
+
+head(CommuteTripsPerson)
+hist(CommuteTripsPerson$drivealone)
 ```
 
 <br>
@@ -687,6 +694,7 @@ Independent variables of interest:
 * `TOLLA`: toll amount
 * `PARKC`: parking cost ($)
 * `PARKU`: parking cost unit (per hour, day, week, month, or other)
+* `TRNCT`: Cost of Using Transit (dollar figure)
 
 > Others to maybe add later from TRIP_PUB:
 SUBTR     Boarding Station
@@ -730,12 +738,15 @@ hist(CommuteTripsPerson$TOLL)
 hist(CommuteTripsPerson$PARKU)
 hist(CommuteTripsPerson$TRPDUR)
 
+glimpse(CommuteTripsPerson)
 ```
 
 
-Test variables of interest for colinearity with independent variable (shown in descending order of cor. score)
+Test variables of interest for colinearity with dependent variable (shown in descending order of cor. score)
 
 ```{r Correlations with dependent variable}
+print("Cost of Using Transit")
+cor(CommuteTripsPerson$drivealone, CommuteTripsPerson$TRNCT, use="complete.obs", method="pearson")
 print("Presence of Toll")
 cor(CommuteTripsPerson$drivealone, CommuteTripsPerson$TOLL, use="complete.obs", method="pearson")
 print("Trip Duration")
@@ -766,7 +777,7 @@ Let's test these variables for colinearity with the dependent variable and each 
 ```{r correlation matrix 2, fig.width=7, fig.height=5, fig.width=8}
 #make matrix of variables we're testing
 mod_A_vars <- CommuteTripsPerson %>% 
-  dplyr::select(drivealone, TOLL, TOLLA, TRPDUR, INCOM, GEND_F, GEND_M, AGE, PARKC, PARKU_H, PARKU_D, PARKU_W, PARKU_M)
+  dplyr::select(drivealone, TOLL, TOLLA, TRPDUR, INCOM, GEND_F, GEND_M, AGE, PARKC, PARKU_H, PARKU_D, PARKU_W, PARKU_M, TRNCT)
 
 #r clear Nans and Inf values
 mod_A_vars[sapply(mod_A_vars, is.na)] <- 0
@@ -787,7 +798,7 @@ corrplot(cormatrix2, method = "circle", type = "lower", order = "hclust",
 
 This plot shows that the presence of a toll and toll amount exhibit correlation with each other, meaning that their inclusion in the model is mutually exclusive. Unsurprisingly, the same is true for male and female drivers. We pick the presence of a toll (`TOLL`) and female drivers (`GEND_F`) to include in our models, because they are more correlated with drive alone trips than their closely correlated pair.
 
-This yields are final list of independent variables to include in our models:
+This yields our final list of independent variables to include in our models:
 * `GEND_F`: Female commuter
 * `AGE`: Age of commuter
 * `INCOM`: total 1999 annual household income 
@@ -798,6 +809,7 @@ This yields are final list of independent variables to include in our models:
 * `PARKU_D`: parking priced per day
 * `PARKU_W`: parking priced per week
 * `PARKU_M`: parking priced per month
+* `TRNCT`: Cost of Using Transit (dollar figure)
 
 <br>
 
@@ -809,7 +821,7 @@ First, we create a baseline model, called `mod_A`, that includes all of our vari
 
 ```{r B1 mod1}
 mod_A <- glm ( drivealone ~ AGE + GEND_F + TRPDUR + INCOM + TOLL + PARKC +
-                PARKU_H + PARKU_D + PARKU_W + PARKU_M,
+                PARKU_H + PARKU_D + PARKU_W + PARKU_M + TRNCT,
                data=CommuteTripsPerson, family = binomial)
 print("mod_A")
 summary(mod_A)
@@ -825,10 +837,10 @@ drop1(mod_A, test="Chisq")
 ```
 Running `drop1` gives us some useful information. We see that if we drop no variables from the model, the AIC is 2698.4. Furthermore, we want to keep variables in the model that have a large LRT (suggesting XX) and small p-value (suggesting statistical significance).
 
-We run a new model with just `GEND_F`, `TRPDUR`, `INCOM`, and `TOLL` based on these results.
+We run a new model with just `GEND_F`, `TRPDUR`, `INCOM`, `TOLL`, and `TRNCT` based on these results.
 
 ```{r B1 mod2}
-mod_B <- glm ( drivealone ~  GEND_F + TRPDUR + INCOM + TOLL,
+mod_B <- glm ( drivealone ~  GEND_F + TRPDUR + INCOM + TOLL + TRNCT,
                data=CommuteTripsPerson, family = binomial)
 summary(mod_B)
 ```
@@ -837,7 +849,7 @@ Interestingly, in this new model, all of the variables are significant except `T
 Let's see what happens if we run one more model without `TOLL`.
 
 ```{r r B1 mod3}
-mod_C <- glm ( drivealone ~ GEND_F + TRPDUR + INCOM, data=CommuteTripsPerson, family = binomial)
+mod_C <- glm ( drivealone ~ GEND_F + TRPDUR + INCOM + TRNCT, data=CommuteTripsPerson, family = binomial)
 summary(mod_C)
 ```
 In this third model, all of the variables are significant, but the AIC has increased slightly again.
@@ -846,60 +858,29 @@ In this third model, all of the variables are significant, but the AIC has incre
 
 ## B.1D Interpret Model Results
 
-
-```{r mod plots}
-mod_gg1 <- data.frame(matrix(ncol = 3, nrow = nrow(CommuteTripsPerson)))
-colnames(mod_gg1) <- c("TRPDUR", "INCOM", "GEND_F")
-mod_gg1$TRPDUR <- CommuteTripsPerson$TRPDUR
-mod_gg1$INCOM <- mean(CommuteTripsPerson$INCOM)
-mod_gg1$GEND_F <- 1
-
-mod_gg2 <- data.frame(matrix(ncol = 3, nrow = nrow(CommuteTripsPerson)))
-colnames(mod_gg2) <- c("TRPDUR", "INCOM", "GEND_F")
-mod_gg2$TRPDUR <- CommuteTripsPerson$TRPDUR
-mod_gg2$INCOM <- mean(CommuteTripsPerson$INCOM)
-mod_gg2$GEND_F <- 0
-
-#Predict results based on models
-pred_dat <- data.frame(matrix(ncol = 3, nrow = nrow(CommuteTripsPerson)))
-colnames(pred_dat) <- c("TRPDUR", "Pred_GendF_Inc50K", "Pred_GendM_Inc50K")
-pred_dat$TRPDUR <- CommuteTripsPerson$TRPDUR
-pred_dat$Pred_GendF_Inc50K <- predict(mod_C, mod_gg1, type="response") #store predicted probabilities in new column
-pred_dat$Pred_GendM_Inc50K <- predict(mod_C, mod_gg2, type="response")
-
-pred_dat_wd <- pred_dat %>% 
-  pivot_longer(!TRPDUR, names_to = "Scenario")
-
-ggplot(pred_dat_wd, aes(x = TRPDUR, y = value, colour = Scenario)) + 
-        geom_line() + ylim(0,1) +
-        xlab("Trip Duration") + ylab("Predicted Probability of Drive Alone") +
-  theme_bw()
-```
-Our model suggests that if income is constant, men are more likely to drive alone to work no matter the length of their trip. 
-
 **Prediction Accuracy**
-Calculating our mode's prediction accuracy gives us an accuracy rate of 86% - pretty good!
 
 ```{r prediction accuracy}
 predC <- as.data.frame(fitted(mod_C))
-predC <- rename(pred, "prob" = "fitted(mod_C)")
-predC <- mutate(pred, "binary" = ifelse(prob < 0.5, 0, 1)) #if predicted probabilities are <0.5, then classify as zero, otherwise classify as 1
+predC <- rename(predC, "prob" = "fitted(mod_C)")
+predC <- mutate(predC, "binary" = ifelse(prob < 0.5, 0, 1)) #if predicted probabilities are <0.5, then classify as zero, otherwise classify as 1
 
 #append column to original data frame
 CommuteTripsPerson$binary <- predC$binary
-head(CommuteTripsPerson)
 
 #accuracy rate
 (sum(CommuteTripsPerson$drivealone == 1 & CommuteTripsPerson$binary == 1) + 
     sum(CommuteTripsPerson$drivealone == 0 & CommuteTripsPerson$binary == 0)) /
   nrow(CommuteTripsPerson)
 ```
+Calculating our model's prediction accuracy gives us an accuracy rate of 86% - pretty good!
 
 Check model fit with ANOVA
+
 ```{r Check fit wANOVA}
 anova(mod_A, mod_B, mod_C, test="Chisq")
 ```
-
+Our third model gives the largest decrease in deviance, suggesting it is not only our leanest, but also our meanest model.
 
 **Interpret coefficients**
 ```{r interpret coeficient mod_C}
@@ -910,11 +891,51 @@ anova(mod_A, mod_B, mod_C, test="Chisq")
 #percent change in the odds ratio 
 100 * (exp(coef(mod_C))-1)
 ```
-The coefficients of our model suggest that the odds ratio of a person driving alone to work is 39% *lower* if they are female, a unit increase in trip duration *decreases* the odds ratio of someone driving alone to work by 1%, and a unit increase in income *increases* the odds ratio of a person driving alone to work by 4%.
+The coefficients of our model suggest that:
+* The odds ratio of a person driving alone to work is 40.4% *lower* if they are female.  
+* a unit increase in trip duration *decreases* the odds ratio of someone driving alone to work by 0.6%.  
+* a unit increase in income *increases* the odds ratio of a person driving alone to work by 5.5%.  
+* And a unit increase in transit cost decreases the odds ratio of a person driving alone to work by 1.6%.  
+
+The charts below show that these patterns hold true across the other variables.
+
+
+```{r mod plots}
+mod_gg1 <- data.frame(matrix(ncol = 4, nrow = nrow(CommuteTripsPerson)))
+colnames(mod_gg1) <- c("TRPDUR", "INCOM", "GEND_F", "TRNCT")
+mod_gg1$TRPDUR <- CommuteTripsPerson$TRPDUR
+mod_gg1$INCOM <- mean(CommuteTripsPerson$INCOM)
+mod_gg1$GEND_F <- 1
+mod_gg1$TRNCT <- mean(CommuteTripsPerson$TRNCT)
+
+mod_gg2 <- data.frame(matrix(ncol = 4, nrow = nrow(CommuteTripsPerson)))
+colnames(mod_gg2) <- c("TRPDUR", "INCOM", "GEND_F", "TRNCT")
+mod_gg2$TRPDUR <- CommuteTripsPerson$TRPDUR
+mod_gg2$INCOM <- mean(CommuteTripsPerson$INCOM)
+mod_gg2$GEND_F <- 0
+mod_gg2$TRNCT <- mean(CommuteTripsPerson$TRNCT)
+
+#Predict results based on models
+pred_dat <- data.frame(matrix(ncol = 3, nrow = nrow(CommuteTripsPerson)))
+colnames(pred_dat) <- c("TRPDUR", "Pred_GendF_Inc50K_TRNCT7", "Pred_GendM_Inc50K_TRNCT7")
+pred_dat$TRPDUR <- CommuteTripsPerson$TRPDUR
+#store predicted probabilities in new column
+pred_dat$Pred_GendF_Inc50K_TRNCT7 <- predict(mod_C, mod_gg1, type="response")
+pred_dat$Pred_GendM_Inc50K_TRNCT7 <- predict(mod_C, mod_gg2, type="response")
+
+pred_dat_wd <- pred_dat %>% 
+  pivot_longer(!TRPDUR, names_to = "Scenario")
+
+ggplot(pred_dat_wd, aes(x = TRPDUR, y = value, colour = Scenario)) + 
+        geom_line() + ylim(0,1) +
+        xlab("Trip Duration") + ylab("Predicted Probability of Drive Alone") +
+  theme_bw()
+```
 
 >Summarize your model results in a paragraph.
 
->Include a few plots or tables that show the probabilities of each choice versus changes in key variables in your model.
+In summary, the model suggests XX.
+
 
 <br>
 
@@ -923,12 +944,324 @@ The coefficients of our model suggest that the odds ratio of a person driving al
 walked/biked to work or used another mode. Use any and all independent variables
 you think appropriate, including dummy variables.
 
+## B.2A Data Exploration and Processing
+
+```{r trip data cleaning}
+#grab anyone who walked or biked to work on their first one-way work trip of the day
+trip_dat$walkbike[(trip_dat$TRAN1==11 | trip_dat$TRAN2==11 | 
+                       trip_dat$TRAN3==11| trip_dat$TRAN4==11 |
+                     trip_dat$TRAN1==14 | trip_dat$TRAN2==14 | 
+                       trip_dat$TRAN3==14| trip_dat$TRAN4==14 )] <-1
+trip_dat$walkbike[which(is.na(trip_dat$walkbike))] <-0 #Remove NAs
+
+#now let's pick out that first work trip
+CommuteTripsClean <- trip_dat[which(trip_dat$Dest_PTYE == 2), ]
+
+#let's merge in on person number and SAMPN
+#we have to merge together the SAMPN and the person number 
+#There is an X variable in the data frame already.
+#We can replicate this column by concatenating SAMPB and PERNO
+CommuteTripsClean$SAMPN_PER <- paste0(CommuteTripsClean$SAMPN, CommuteTripsClean$PERNO)
+
+#grab just the first work trip
+CommuteTripsClean <- subset(CommuteTripsClean, !duplicated(SAMPN_PER))
+
+#Retain just the columns we need from the trip data. 
+CommuteTrips_walkbike <- CommuteTripsClean %>% 
+  dplyr::select(SAMPN, PERNO, SAMPN_PER, TOLLA, TOLL, PARKC, PARKU, TRPDUR, walkbike)
+
+#remove trips with a duration of zero
+CommuteTrips_walkbike <- CommuteTrips_walkbike %>% 
+  filter(TRPDUR != 0)
+
+glimpse(CommuteTrips_walkbike)
+summary(CommuteTrips_walkbike)
+
+hist(CommuteTrips_walkbike$walkbike)
+```
+
+```{r merge CommuteTripsClean3 with per_hh_clean}
+#Merge CommuteTrips_walkbike with per_hh_clean via SAMPN_PER
+CommuteTrips_walkbike <- merge(CommuteTrips_walkbike, 
+                            per_hh_clean,
+                            by.x = "SAMPN_PER", 
+                            by.y = "SAMPN_PER", 
+                            all.x = TRUE, 
+                            all.y = FALSE, 
+                            sort = FALSE)
+```
+
+## B.2B Variable Selection
+
+The binomial Dependent Variable for our model is `walkbike`: Which is whether the person walked or cycled to work vs. got to work any other way.
+
+The values for `GEND`, `TOLL`, and `PARKU` are categorical, so we need to turn them into binary dummy variables to be able to use them in our models.
+
+```{r B1 Dummy Vars}
+#Create dummy variables from GEND, TOLL, and PARKU
+CommuteTrips_walkbike <- CommuteTrips_walkbike %>% 
+  mutate(GEND_M = ifelse(GEND == 1, 1, 0)) %>% #create binary for male drivers
+  mutate(GEND_F = ifelse(GEND == 2, 1, 0)) %>% #create binary for female drivers
+  mutate(TOLL = ifelse(TOLL == 1, 1, 0)) %>% #create binary for tolls
+  mutate(PARKU_H = ifelse(PARKU == 1, 1, 0)) %>% #create binary for hourly parking
+  mutate(PARKU_D = ifelse(PARKU == 2, 1, 0)) %>% #create binary for daily parking
+  mutate(PARKU_W = ifelse(PARKU == 3, 1, 0)) %>% #create binary for weekly parking
+  mutate(PARKU_M = ifelse(PARKU == 4, 1, 0)) #create binary for monthly parking
+```
+
+Independent variables of interest:
+* `GEND`: Person X - Gender
+* `AGE`: Person X - Age 
+* `INCOM`: total 1999 annual household income 
+* `TRPDUR`: trip duration
+* `TOLL`: presence of toll (Y/N)
+* `TOLLA`: toll amount
+* `PARKC`: parking cost ($)
+* `PARKU`: parking cost unit (per hour, day, week, month, or other)
+* `TRNCT`: Cost of Using Transit (dollar figure)
+
+```{r walk bike vars review}
+summary(CommuteTrips_walkbike)
+```
+Remove some outliers and NAs
+
+```{r rm outliers and NAs}
+CommuteTrips_walkbike <-CommuteTrips_walkbike[which(CommuteTrips_walkbike$AGE %in% 1:110),]
+CommuteTrips_walkbike <-CommuteTrips_walkbike[which(CommuteTrips_walkbike$TRPDUR %in% 0:400),]
+
+CommuteTrips_walkbike$W1CPK[which(is.na(CommuteTrips_walkbike$W1CPK))] <-0
+CommuteTrips_walkbike$PARKU_H[which(is.na(CommuteTrips_walkbike$PARKU_H))] <-0
+CommuteTrips_walkbike$PARKU_D[which(is.na(CommuteTrips_walkbike$PARKU_D))] <-0
+CommuteTrips_walkbike$PARKU_W[which(is.na(CommuteTrips_walkbike$PARKU_W))] <-0
+CommuteTrips_walkbike$PARKU_M[which(is.na(CommuteTrips_walkbike$PARKU_M))] <-0
+
+CommuteTrips_walkbike[sapply(CommuteTrips_walkbike, is.na)] <- 0
+CommuteTrips_walkbike[sapply(CommuteTrips_walkbike, is.nan)] <- 0
+CommuteTrips_walkbike[sapply(CommuteTrips_walkbike, is.infinite)] <- 0
+```
+
+Test variables of interest for colinearity with dependent variable (shown in descending order of cor. score).
+
+```{r Correlations with dependent variable walkbike}
+print("Cost of Using Transit")
+cor(CommuteTrips_walkbike$walkbike, CommuteTrips_walkbike$TRNCT, use="complete.obs", method="pearson")
+print("Cost to Park at Work")
+cor(CommuteTrips_walkbike$walkbike, CommuteTrips_walkbike$W1CPK, use="complete.obs", method="pearson")
+print("Age")
+cor(CommuteTrips_walkbike$walkbike, CommuteTrips_walkbike$AGE, use="complete.obs", method="pearson")
+print("Trip Duration")
+cor(CommuteTrips_walkbike$walkbike, CommuteTrips_walkbike$TRPDUR, use="complete.obs", method="pearson")
+print("Daily Parking")
+cor(CommuteTrips_walkbike$walkbike, CommuteTrips_walkbike$PARKU_D, use="complete.obs", method="pearson")
+print("Income")
+cor(CommuteTrips_walkbike$walkbike, CommuteTrips_walkbike$INCOM, use="complete.obs", method="pearson")
+print("Presence of Toll")
+cor(CommuteTrips_walkbike$walkbike, CommuteTrips_walkbike$TOLL, use="complete.obs", method="pearson")
+print("Monthly Parking")
+cor(CommuteTrips_walkbike$walkbike, CommuteTrips_walkbike$PARKU_M, use="complete.obs", method="pearson")
+print("Hourly Parking")
+cor(CommuteTrips_walkbike$walkbike, CommuteTrips_walkbike$PARKU_H, use="complete.obs", method="pearson")
+print("Weekly Parking")
+cor(CommuteTrips_walkbike$walkbike, CommuteTrips_walkbike$PARKU_W, use="complete.obs", method="pearson")
+print("Gender - Female")
+cor(CommuteTrips_walkbike$walkbike, CommuteTrips_walkbike$GEND_F, use="complete.obs", method="pearson")
+print("Gender - Male")
+cor(CommuteTrips_walkbike$walkbike, CommuteTrips_walkbike$GEND_M, use="complete.obs", method="pearson")
+print("Parking Cost")
+cor(CommuteTrips_walkbike$walkbike, CommuteTrips_walkbike$PARKC, use="complete.obs", method="pearson")
+```
+Overall, there doesn't seem to be a lot of correlation between these variables and walking or biking to work, especially when exdluding the cost of using transit.
+
+Let's test these variables for colinearity with the dependent variable and each other using a correlation  plot.
+
+```{r correlation matrix 2, fig.width=7, fig.height=5, fig.width=8}
+#make matrix of variables we're testing
+mod_Aa_vars <- CommuteTrips_walkbike %>% 
+  dplyr::select(walkbike, TOLL, TRPDUR, INCOM, GEND_F, GEND_M, AGE, PARKC, PARKU_H, PARKU_D, PARKU_W, PARKU_M, TRNCT, W1CPK)
+
+#r clear Nans and Inf values
+mod_Aa_vars[sapply(mod_Aa_vars, is.na)] <- 0
+mod_Aa_vars[sapply(mod_Aa_vars, is.nan)] <- 0
+mod_Aa_vars[sapply(mod_Aa_vars, is.infinite)] <- 0
+
+any(is.na(mod_Aa_vars))
+
+#compute correlation matrix
+cormatrix3 <- cor(mod_Aa_vars) %>% 
+  round(., 2)
+
+#plot a correlogram
+corrplot(cormatrix3, method = "circle", type = "lower", order = "hclust", 
+         tl.col = "black", tl.srt = 45)
+```
+
+## B.2C Develop Binomial Logit Model
+
+First, we create a baseline model, called `mod_Aa`, that includes all of our variables of interest.
+
+```{r B2 mod1}
+mod_Aa <- glm ( walkbike ~ AGE + GEND_F + TRPDUR + INCOM + TOLL + PARKC +
+                PARKU_H + PARKU_D + PARKU_W + PARKU_M + TRNCT + W1CPK,
+               data=CommuteTrips_walkbike, family = binomial)
+print("mod_Aa")
+summary(mod_Aa)
+```
+
+We see that many of the variables included in `mod_Aa` lack significance.
+
+Let's try to whittle these down with automated backwards selection using `drop1`.
+
+```{r B2 drop1}
+#Use drop1 to decide which variables to remove
+#LRT shows the change in deviance, so a large LRT and small p-value means we should keep the variable in the model, and a small LRT and/or large p-value means cut it
+drop1(mod_Aa, test="Chisq")
+```
+
+Running `drop1` gives us some useful information. We see that if we drop no variables from the model, the AIC is 1387.8. Furthermore, we want to keep variables in the model that have a large LRT and small p-value (suggesting statistical significance).
+
+We run a new model with just `AGE`, `TRPDUR`, `INCOM`, `TOLL`, `PARKC`, `PARKU_D`, `TRNCT`, and `W1CPK` based on these results.
+
+```{r B2 mod2}
+mod_Bb <- glm (walkbike ~  AGE + TRPDUR + INCOM + TOLL + PARKC + PARKU_D + TRNCT + W1CPK,
+               data=CommuteTrips_walkbike, family = binomial)
+summary(mod_Bb)
+```
+Good news, We see that the AIC has gone down slightly and just two variables, `TOLL` and `PARKC` appear to not be significant. So we run a new model without them.
+
+```{r B2 mod3}
+mod_Cc <- glm (walkbike ~  AGE + TRPDUR + INCOM + PARKU_D + TRNCT + W1CPK,
+               data=CommuteTrips_walkbike, family = binomial)
+summary(mod_Cc)
+```
+This raises the AIC slightly but now all of the variables are significant. It looks like neither `PARKU_D` or `W1CPK` are not very significant though, so let's see what happens when we drop those variables.
+
+```{r B2 mod4}
+mod_Dd <- glm (walkbike ~  AGE + TRPDUR + INCOM + TRNCT,
+               data=CommuteTrips_walkbike, family = binomial)
+summary(mod_Dd)
+```
+This raised the AIC by less than 1 and now all of the variables in our model are significant. Therefore, our fourth model appears to give us comparable results with the fewest variables.
+
+<br>
+
+## B.2D Interpret Model Results
+
+To confirm our selection of the fourth model as the best one, we compare the fit of all four models with ANOVA.
+
+```{r Check fit wANOVA}
+anova(mod_Aa, mod_Bb, mod_Cc, mod_Dd, test="Chisq")
+```
+This test shows that our third model actually gives the largest decrease in deviance, suggesting that we lose a certain level of significance by dropping `PARKU_D` and `W1CPK`.
+
+Therefore, we select our third model as our final model, instead of our fourth.
+
+
+**Prediction Accuracy**
+
+```{r prediction accuracy}
+predW <- as.data.frame(fitted(mod_Cc))
+predW <- rename(predW, "prob" = "fitted(mod_Cc)")
+predW <- mutate(predW, "binary" = ifelse(prob < 0.5, 0, 1)) #if predicted probabilities are <0.5, then classify as zero, otherwise classify as 1
+
+#append column to original data frame
+CommuteTrips_walkbike$binary <- predW$binary
+
+#accuracy rate
+(sum(CommuteTrips_walkbike$walkbike == 1 & CommuteTrips_walkbike$binary == 1) + 
+    sum(CommuteTrips_walkbike$walkbike == 0 & CommuteTrips_walkbike$binary == 0)) /
+  nrow(CommuteTrips_walkbike)
+```
+Calculating our model's prediction accuracy gives us an accuracy rate of 94% this time!
+
+```{r false positives and negatives}
+#false positives - predict that the person drove but actually didn't
+print("False Positives")
+sum(CommuteTrips_walkbike$walkbike == 0 & CommuteTrips_walkbike$binary == 1)
+
+#false negatives - predict that the person didn't drive but actually did 
+print("False Negatives")
+sum(CommuteTrips_walkbike$walkbike == 1 & CommuteTrips_walkbike$binary == 0)
+```
+We see that the model seems to somewhat under predict the likelihood people will walk or bike to work.
+
+```{r deviance}
+modelChiDd <- mod_Dd$null.deviance - mod_Dd$deviance
+modelChiDd
+```
+And we see that our final model's deviance is smaller than the null deviance, so the model fits the data better than a model with just the intercept.
+
+**Interpret coefficients**
+```{r interpret coeficient mod_Cc}
+#if exp(coef) = .8:  a unit increase in X is associated with 
+#a 20% decline in the odds ratio
+#if exp(coef)  = 1.5:  a unit increase in X is associated with 
+#a 50% increase in the odds ratio
+#percent change in the odds ratio 
+100 * (exp(coef(mod_Cc))-1)
+```
+The coefficients of our model suggest that:
+* A unit increase in a person's age *decreases* the odds ratio that they will walk or bike to work by 1.6%.
+* A unit increase in trip duration also *decreases* the odds ratio of a person walking or biking to work by 1.6%.  
+* A a unit increase in a person's income *decreases* the odds ratio that they will walk or bike to work by 6.6%.   
+* The odds ratio of a person walking or biking to work *increases* by 133.7% if they pay for parking by day as opposed to by hour, week, or month.
+* A unit increase in transit cost *increases* the odds ratio of a person walking or biking to work by 1.4%.
+* A unit increase in the cost of parking a vehicle at work *increases* the odds ratio of a person walking or biking to work by 0.2%.
+
+It is important to note that based on our models, that age, trip duration, transit cost, and income seem to be the most significant factors related to whether a person walks or bikes to work.
+
+The charts below show that these patterns hold true across the other variables.
+
+
+```{r mod plots 2}
+mod_gg3 <- data.frame(matrix(ncol = 6, nrow = nrow(CommuteTrips_walkbike)))
+colnames(mod_gg3) <- c("TRPDUR", "AGE", "INCOM", "PARKU_D", "TRNCT", "W1CPK")
+mod_gg3$TRPDUR <- mean(CommuteTrips_walkbike$TRPDUR)
+mod_gg3$INCOM <- CommuteTrips_walkbike$INCOM
+mod_gg3$AGE <- mean(CommuteTrips_walkbike$AGE)
+mod_gg3$TRNCT <- mean(CommuteTrips_walkbike$TRNCT)
+mod_gg3$PARKU_D <- 1
+mod_gg3$W1CPK <- mean(CommuteTrips_walkbike$W1CPK)
+
+mod_gg4 <- data.frame(matrix(ncol = 6, nrow = nrow(CommuteTrips_walkbike)))
+colnames(mod_gg4) <- c("TRPDUR", "AGE", "INCOM", "PARKU_D", "TRNCT", "W1CPK")
+mod_gg4$TRPDUR <- mean(CommuteTrips_walkbike$TRPDUR)
+mod_gg4$INCOM <- CommuteTrips_walkbike$INCOM
+mod_gg4$AGE <- mean(CommuteTrips_walkbike$AGE)
+mod_gg4$TRNCT <- mean(CommuteTrips_walkbike$TRNCT)
+mod_gg4$PARKU_D <- 0
+mod_gg4$W1CPK <- mean(CommuteTrips_walkbike$W1CPK)
+
+#Predict results based on models
+pred_dat2 <- data.frame(matrix(ncol = 3, nrow = nrow(CommuteTrips_walkbike)))
+colnames(pred_dat2) <- c("INCOM", "Pred_PARKU_D_Y", "Pred_PARKU_D_N")
+pred_dat2$INCOM <- CommuteTrips_walkbike$INCOM
+#store predicted probabilities in new column
+pred_dat2$Pred_PARKU_D_Y <- predict(mod_Cc, mod_gg3, type="response")
+pred_dat2$Pred_PARKU_D_N <- predict(mod_Cc, mod_gg4, type="response")
+
+pred_dat_wd2 <- pred_dat2 %>% 
+  pivot_longer(!INCOM, names_to = "Scenario")
+
+ggplot(pred_dat_wd2, aes(x = INCOM, y = value, colour = Scenario)) + 
+        geom_line() + ylim(0,1) +
+        xlab("Income") + ylab("Predicted Probability of Walking or Biking") +
+  theme_bw()
+```
+
 >Summarize your model results in a few paragraphs. Include a few plots or tables
 that show the probabilities of each choice versus changes in key variables in your
 model.
 
 >How does this model compare to the results of the models from question B1?
 Venture some reasons for the differences.
+
+When we compare factors related to people driving alone to work from part B1 and factors related to people walking or biking to work (part B2), we observe a couple of key differences. First, gender appears to be a significant factor related to driving alone, but an insignificant one when when it comes to the decision to walk or bike to work. Additionally, paying for parking by day and the cost of parking a vehicle at work both appear to be significantly related to the probability of someone walking or biking to work, but not significantly related to the probability of them driving alone.
+
+Possible explanations for why women are less likely to drive alone to work than men are the larger burden of childcare that women still carry in the U.S. Additionally, our models suggest that higher income is also correlated with driving alone so the gender pay gap could also be a factor.
+
+The cost of parking at work and the parking cost unit could be associated with increased probability of walking or cycling to work because they act as deterrents. Higher cost of parking at work could decrease the perceived hardship of walking or cycling. Paying for parking by day is a surprising variable to see in this list. It could be that paying for parking more frequently creates more opportunities for a commuter to re-evaluate their mode choice.
+
+Trip duration, income, and transit cost appear to influence the probability both of someone driving alone to work and of someone walking or cycling.
 
 <br>
 
@@ -937,6 +1270,200 @@ Venture some reasons for the differences.
 you can explaining whether a traveler drove to work, carpooled, took public transit,
 or walked or biked. Use any and all independent variables you think appropriate,
 including dummy variables.
+
+```{r MNL bucket creation}
+#let's grab anyone who has one of four modes in their sequence: 
+#walked or bike/non-motorized
+#drive alone
+#carpooled
+#transit
+
+#bike/non-motorized
+trip_dat <- trip_dat %>% 
+  mutate(walkbike = case_when(
+    TRAN1==11 ~ 1,
+    TRAN1==12 ~ 1,
+    TRAN1==14 ~ 1,
+    TRAN1==23 ~ 1,
+    TRAN2==11 ~ 1,
+    TRAN2==12 ~ 1,
+    TRAN2==14 ~ 1,
+    TRAN2==23 ~ 1,
+    TRAN3==11 ~ 1,
+    TRAN3==12 ~ 1,
+    TRAN3==14 ~ 1,
+    TRAN3==23 ~ 1,
+    TRAN4==11 ~ 1,
+    TRAN4==12 ~ 1,
+    TRAN4==14 ~ 1,
+    TRAN4==23 ~ 1,
+    TRUE ~ 0
+  ))
+
+trip_dat$walkbike[which(is.na(trip_dat$walkbike))] <-0 #Remove NAs
+
+#drive alone
+trip_dat <- trip_dat %>% 
+  mutate(drivealone = case_when(
+    TRAN1==21 ~ 1,
+    TRAN2==21 ~ 1,
+    TRAN3==21 ~ 1,
+    TRAN4==21 ~ 1,
+    TRUE ~ 0
+  ))
+
+trip_dat$drivealone[which(is.na(trip_dat$drivealone))] <-0 #Remove NAs
+
+#carpool
+trip_dat <- trip_dat %>% 
+  mutate(carpool = case_when(
+    TRAN1==22 ~ 1,
+    TRAN1==31 ~ 1,
+    TRAN2==22 ~ 1,
+    TRAN2==31 ~ 1,
+    TRAN3==22 ~ 1,
+    TRAN3==31 ~ 1,
+    TRAN4==22 ~ 1,
+    TRAN4==31 ~ 1,
+    TRUE ~ 0
+  ))
+
+trip_dat$carpool[which(is.na(trip_dat$carpool))] <-0 #Remove NAs
+
+#transit
+#assume transit is 
+#47 Trolley, trolley bus
+#48 Jitney
+#51 Subway/elevated (Market-Frankford, Broad St., PATCO)
+#52 Commuter railroad (SEPTA, NJ transit)
+#41 Bus (SEPTA, NJ transit)
+trip_dat <- trip_dat %>% 
+  mutate(transit = case_when(
+    TRAN1==41 ~ 1,
+    TRAN1==47 ~ 1,
+    TRAN1==48 ~ 1,
+    TRAN1==51 ~ 1,
+    TRAN1==52 ~ 1,
+    TRAN2==41 ~ 1,
+    TRAN2==47 ~ 1,
+    TRAN2==48 ~ 1,
+    TRAN2==51 ~ 1,
+    TRAN2==52 ~ 1,
+    TRAN3==41 ~ 1,
+    TRAN3==47 ~ 1,
+    TRAN3==48 ~ 1,
+    TRAN3==51 ~ 1,
+    TRAN3==52 ~ 1,
+    TRAN4==41 ~ 1,
+    TRAN4==47 ~ 1,
+    TRAN4==48 ~ 1,
+    TRAN4==51 ~ 1,
+    TRAN4==52 ~ 1,
+    TRUE ~ 0
+  ))
+
+trip_dat$transit[which(is.na(trip_dat$transit))] <-0 #Remove NAs
+
+## if both are true, let's give it to transit, makes the most sense 
+trip_dat$drivealone[trip_dat$transit==1 & trip_dat$drivealone==1]<-0
+trip_dat$walkbike[trip_dat$transit==1 & trip_dat$walkbike==1]<-0
+trip_dat$carpool[trip_dat$transit==1 & trip_dat$carpool==1]<-0
+
+# and if carpool and drive alone conflict, give it to carpool (same for walk/bike and carpool)
+trip_dat$drivealone[trip_dat$carpool==1 & trip_dat$drivealone==1]<-0
+trip_dat$walkbike[trip_dat$carpool==1 & trip_dat$walkbike==1]<-0
+
+#if walkbike and drive alone conflict, give it to drive alone
+trip_dat$walkbike[trip_dat$drivealone==1 & trip_dat$walkbike==1]<-0
+```
+
+```{r MNL cleaning and processing}
+#clean and convert NAs to zero
+trip_dat$drivealone[which(is.na(trip_dat$drivealone))]<-0
+
+trip_dat$carpool[which(is.na(trip_dat$carpool))]<-0
+
+trip_dat$walkbike[which(is.na(trip_dat$walkbike))]<-0
+
+trip_dat$transit[which(is.na(trip_dat$transit))]<-0
+
+##clean out any rows where they are all zero 
+trip_dat$SUMZERO <- trip_dat$transit + trip_dat$walkbike + trip_dat$drivealone + trip_dat$carpool
+table(trip_dat$SUMZERO)
+
+trip_dat <- trip_dat[-which(trip_dat$SUMZERO == 0), ] 
+
+#now let's pick out that first work trip
+CommuteTripsClean <- trip_dat[which(trip_dat$Dest_PTYE == 2), ] 
+head(CommuteTripsClean)
+
+#combine modes into a single column so that we can plot
+CommuteTripsClean$Commute[CommuteTripsClean$drivealone == 1] <- 1
+CommuteTripsClean$Commute[CommuteTripsClean$carpool == 1] <- 2
+CommuteTripsClean$Commute[CommuteTripsClean$walkbike == 1] <- 3
+CommuteTripsClean$Commute[CommuteTripsClean$transit == 1] <- 4
+
+#are there NAs?
+table(is.na(CommuteTripsClean$Commute))
+table(CommuteTripsClean$Commute)
+
+#plot frequency of each mode chosen
+hist(CommuteTripsClean$Commute)
+
+#let's merge in on person number and SAMPN
+#we have to merge together the SAMPN and the person number
+CommuteTripsClean$SAMPN_PER <- paste(CommuteTripsClean$SAMPN, CommuteTripsClean$PERNO, sep = "")
+
+#Some people take multiple work trips. Let's just grab the first work trip
+CommuteTripsClean <- subset(CommuteTripsClean, !duplicated(SAMPN_PER))
+```
+
+```{r clean hh_dat}
+#let's merge in on person number and SAMPN
+per_hh_dat <- merge(per_dat, hh_dat,
+                    by.x = "SAMPN", 
+                    by.y = "SAMPN", 
+                    all.x = TRUE, 
+                    all.y=FALSE, 
+                    sort = FALSE)
+
+#get rid of columns we don't need
+per_datClean <- per_hh_dat %>% 
+  select(-VETMO, -W2TY, -W2TYO, -W2TYP, -W2LOC, -W2IND, -W2INO, -W2OCC, -W2OCO, -W2DAY, -W2HOM,
+          -W2HOO, -W2ST, -W2ET, -W1WKD3, -W1WKD4, -W1WKE, -W1WKD1, -W1WKD2)
+
+## we have to merge together the SAMPN and the person number 
+per_datClean$SAMPN_PER <- do.call(paste, c(per_datClean[c("SAMPN", "PERNO")], sep = ""))
+head(per_datClean)
+
+#merge trip with person and household
+CommuteTripsPerson <- merge(CommuteTripsClean, per_datClean,
+                            by.x = "SAMPN_PER", 
+                            by.y = "SAMPN_PER", 
+                            all.x = TRUE, 
+                            all.y=FALSE, 
+                            sort = FALSE)
+dim(CommuteTripsPerson)
+
+##let's check there is no one with 2 yes: 
+CommuteTripsPerson$check <- 
+  CommuteTripsPerson$transit +
+  CommuteTripsPerson$drivealone + 
+  CommuteTripsPerson$carpool + 
+  CommuteTripsPerson$walkbike
+max(CommuteTripsPerson$check)
+```
+
+```{r MNL Variable Selection}
+#keep only useful variables
+CommuteTripsPerson <- CommuteTripsPerson %>% 
+  dplyr::select(SAMPN.x, PERNO.x, AGE, GEND, INCOME, SAMPN_PER, TOLLA, TOLL, PARKC, PARKU, PRKUO, TRPDUR, drivealone, walkbike, transit, carpool, Commute)
+
+#getting rid of NAs in income
+CommuteTripsPerson<-CommuteTripsPerson[-which(is.na(CommuteTripsPerson$INCOME)),]
+head(CommuteTripsPerson)
+```
+
 
 >Summarize your model results in a few paragraphs. Include a few plots or tables
 that show the probabilities of each choice versus changes in key variables in your
