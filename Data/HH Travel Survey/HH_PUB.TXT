@@ -259,7 +259,8 @@ INCOM     Total 1999 Annual Household Income                                 36
              98    Don't know
              99    Refused
 
-OINCM     Sources of Other income                                            37
+O
+M     Sources of Other income                                            37
           Measurement level: Ordinal
           Format: F3  Column Width: 8  Alignment: Right
 

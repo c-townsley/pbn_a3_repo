@@ -220,7 +220,7 @@ TRAN1     First Transport Mode                                               22
              21    Auto/van/SUV driver
              22    Auto/van/SUV passenger
              23    Motorcycle/moped
-             31    Shared ride (carpool, vanpool, etc.)
+             31    Shared ride (carpool,  vanpool, etc.)
              41    Bus (SEPTA, NJ transit)
              42    School bus
              43    Commuter van/shuttle bus: from employer or GRP contract
