@@ -820,7 +820,7 @@ This yields our final list of 11 independent variables to include in our models:
 
 We develop a binomial logit model to to understand the factors that influence the binary outcome of whether or not someone drove alone to work and to make predictions about the probability of them doing so in the future based on our independent variables of interest.
 
-Crucially, we are trying to determine which of these indepdendent variables have the most predictive relevance.
+Crucially, we are trying to determine which of these independent variables have the most predictive relevance.
 
 To do so, we first create a baseline model, called `mod_A`, that includes all of our variables of interest.
 
@@ -878,7 +878,7 @@ Because this model achieved this by removing the `PARKC`, `PARKU_H`, `PARKU_D`, 
 ```{r stargazer, results='asis'}
 stargazer(mod_A, mod_B, mod_C, type="html", digits = 2, single.row = FALSE)
 ```
-Comparing the models with a stargazer table helps us see that the AIC increase of 90 is comparitively slight, and worth the trade off of a model that has solely significant variables.
+Comparing the models with a stargazer table helps us see that the AIC increase of 90 is comparatively slight, and worth the trade off of a model that has solely significant variables.
 
 <br>
 
